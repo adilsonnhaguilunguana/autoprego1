@@ -9,10 +9,11 @@
 #include <ArduinoJson.h>
 #include <PZEM004Tv30.h>
 
+
 // ==================== CONFIGURAÇÕES ====================
 const char* ssid = "Redmi";
 const char* password = "123456789";
-const char* serverURL = "http://10.199.251.16:5000";
+const char* serverURL = "http://172.24.14.16:5000";
 const String apiKey = "SUA_CHAVE_API_SECRETA";
 
 // ==================== PINAGEM CORRIGIDA ====================
@@ -20,9 +21,14 @@ const String apiKey = "SUA_CHAVE_API_SECRETA";
 PZEM004Tv30 pzem1(D2, D1);  // RX=D2, TX=D1 (INVERTIDO!)
 PZEM004Tv30 pzem2(D6, D5);  // RX=D6, TX=D5 (INVERTIDO!)
 
+// Leitura de LDR com Arduino
+int pinoLDR = A0;   // Pino analógico onde o LDR está ligado
+int valorLuz = 0;
+#define R1 D0
+
 // Configurações dos Relés
 const int NUM_RELES = 2;
-const int pinosReles[] = {D0, D4};
+const int pinosReles[] = {D8, D7};
 bool estadosReles[NUM_RELES] = {false};
 
 // Nomes temporários (serão atualizados do HTML)
@@ -79,6 +85,8 @@ void setup() {
   
   Serial.println("Sistema totalmente inicializado e pronto!");
   Serial.println("=========================================");
+  pinMode(R1, OUTPUT);
+
 }
 
 // ==================== LOOP PRINCIPAL CORRIGIDO ====================
@@ -87,11 +95,43 @@ void loop() {
   
   // ⚠️ LER DADOS SEMPRE, MESMO SEM ENVIAR
   lerDadosPZEMsComLog();  // Função nova com logs detalhados
-  
+            
+            //Configuracoes de LDR
+  valorLuz = analogRead(pinoLDR);  // Lê o valor do LDR (0 a 1023)
+  Serial.print("Luminosidade: ");
+  Serial.println(valorLuz);
+
   if (deveEnviarDados()) {
     enviarDadosServidor();
   }
-  
+
+  // ====================== ENVIO DO LDR + R1 ======================
+  if (WiFi.status() == WL_CONNECTED) {
+      WiFiClient client;
+      HTTPClient http;
+
+      String url = String(serverURL) + "/api/ldr";
+      http.begin(client, url);
+      http.addHeader("Content-Type", "application/json");
+
+      int estadoR1 = digitalRead(R1);
+
+      String payload = "{";
+      payload += "\"api_key\":\"" + apiKey + "\",";
+      payload += "\"valorLuz\":" + String(valorLuz) + ",";
+      payload += "\"R1\":" + String(estadoR1);
+      payload += "}";
+
+      int httpCode = http.POST(payload);
+      String resposta = http.getString();
+
+      Serial.println("ENVIO LDR:");
+      Serial.println(payload);
+      Serial.println("Resposta: " + resposta);
+
+      http.end();
+  }
+
   if (deveVerificarComandos()) {
     verificarComandos();
   }
@@ -100,13 +140,25 @@ void loop() {
     atualizarNomesReles();
   }
   
-  controleAutomaticoSeguranca();
   
   if (deveMostrarInformacoes()) {
     informacoesSistemaCompleta();
   }
   
   delay(500); // ⚠️ Aumentado para melhor estabilidade
+
+ if(valorLuz<50){
+Serial.print("luminosidade: ");
+Serial.println(valorLuz);
+delay(500);
+digitalWrite(R1,1);
+ }
+ else{
+ Serial.print("luminosidade: ");
+ Serial.println(valorLuz);
+ delay(500);
+ digitalWrite(R1,0);
+ }
 }
 
 // ==================== FUNÇÃO NOVA: TESTAR COMUNICAÇÃO PZEM ====================
@@ -134,6 +186,7 @@ void testarComunicacaoPZEMs() {
   Serial.println("-----------------------------------------");
 }
 
+  
 // ==================== FUNÇÃO NOVA: LER DADOS COM LOGS ====================
 void lerDadosPZEMsComLog() {
   static unsigned long ultimoLog = 0;
@@ -287,7 +340,7 @@ void enviarDadosServidor() {
   String urlCompleta = String(serverURL) + "/api/dados";
   http.begin(client, urlCompleta);
   http.addHeader("Content-Type", "application/json");
-  http.setTimeout(5000);
+  http.setTimeout(15000);
   
   Serial.print("Enviando dados para: ");
   Serial.println(urlCompleta);
@@ -381,31 +434,90 @@ void verificarComandos() {
 }
 
 void executarComando(String comando) {
-  comando.toUpperCase(); // Ignora maiúsculas/minúsculas
-  Serial.print("Processando comando: ");
-  Serial.println(comando);
+    comando.trim();
+    comando.toUpperCase();
 
-  // Exemplo de comando esperado: "RELE1ON" ou "RELE2OFF"
-  if (comando.startsWith("RELE")) {
-    int idRele = comando.substring(4, 5).toInt() - 1; // índice do array 0-based
-    bool ligar = false;
+    Serial.print("Comando recebido (bruto): ");
+    Serial.println(comando);
 
-    String acao = comando.substring(5); // pega "ON" ou "OFF"
-    if (acao == "ON") ligar = true;
-    else if (acao == "OFF") ligar = false;
+    // =============================================
+    // 1️⃣ CASO ESPECIAL: comando = "1" ou "0"
+    // (controla o relé 1 diretamente)
+    // =============================================
+    if (comando == "1") {
+        controlarRele(0, true);
+        Serial.println("🔌 Relé 1 LIGADO (comando curto)");
+        return;
+    }
+
+    if (comando == "0") {
+        controlarRele(0, false);
+        Serial.println("🔌 Relé 1 DESLIGADO (comando curto)");
+        return;
+    }
+
+    // =============================================
+    // 2️⃣ Remover caracteres seguros
+    // (sem destruir estrutura do comando)
+    // =============================================
+    comando.replace(" ", "");
+    comando.replace("=", "");
+    comando.replace(":", "");
+    comando.replace("-", "");
+    // NÃO remover "_" antes de extrair o ID!
+
+    // Deve começar com RELE
+    if (!comando.startsWith("RELE")) {
+        Serial.println("⚠️ Comando inválido: não começa com RELE");
+        return;
+    }
+
+    // =============================================
+    // 3️⃣ Extrair número do relé
+    // =============================================
+    int pos = 4;
+    while (pos < comando.length() && isDigit(comando[pos])) {
+        pos++;
+    }
+
+    if (pos == 4) {
+        Serial.println("⚠️ Erro: nenhum número de relé encontrado");
+        return;
+    }
+
+    int idRele = comando.substring(4, pos).toInt() - 1;
+
+    if (idRele < 0 || idRele >= NUM_RELES) {
+        Serial.println("⚠️ Relé fora dos limites!");
+        return;
+    }
+
+    // =============================================
+    // 4️⃣ Extrair ação (ON / OFF / 1 / 0)
+    // =============================================
+    String acao = comando.substring(pos);
+    acao.replace("_", "");  // aqui pode remover
+
+    bool ligar;
+
+    if (acao == "ON" || acao == "1") {
+        ligar = true;
+    }
+    else if (acao == "OFF" || acao == "0") {
+        ligar = false;
+    }
     else {
-      Serial.println("⚠️ Comando inválido: ação não reconhecida");
-      return;
+        Serial.print("⚠️ Ação inválida: ");
+        Serial.println(acao);
+        return;
     }
 
-    if (idRele >= 0 && idRele < NUM_RELES) {
-      controlarRele(idRele, ligar);
-    } else {
-      Serial.println("⚠️ Comando inválido: ID do relé fora do limite");
-    }
-  } else {
-    Serial.println("⚠️ Comando não reconhecido");
-  }
+    // =============================================
+    // 5️⃣ Executar o comando
+    // =============================================
+    controlarRele(idRele, ligar);
+
+    Serial.printf("🔌 RELE %d → %s\n", idRele + 1, ligar ? "LIGAR" : "DESLIGAR");
 }
 
 
@@ -420,21 +532,7 @@ void controlarRele(int indiceRele, bool ligar) {
   }
 }
 
-void controleAutomaticoSeguranca() {
-  float consumoTotal = dadosPzem1.power + dadosPzem2.power;
-  
-  if (consumoTotal > LIMITE_POTENCIA_SEGURANCA) {
-    Serial.println("⚠️ Consumo alto - ativando segurança!");
-    
-    for (int i = NUM_RELES - 1; i >= 0; i--) {
-      if (estadosReles[i]) {
-        controlarRele(i, false);
-        delay(500);
-        break;
-      }
-    }
-  }
-}
+
 
 void informacoesSistemaCompleta() {
   Serial.println("\n=== 📊 INFORMAÇÕES COMPLETAS ===");

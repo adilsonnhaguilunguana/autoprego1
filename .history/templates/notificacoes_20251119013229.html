@@ -1,0 +1,135 @@
+<!-- templates/notificacoes.html -->
+<div class="config-panel">
+    <h5><i class="bi bi-bell"></i> Sistema de Notificações</h5>
+    <form id="notification-config-form">
+        <!-- Seção: Tipos de Notificação -->
+        <div class="mb-4">
+            <h6 class="border-bottom pb-2">📨 Tipos de Notificação</h6>
+            
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="notify-email">
+                <label class="form-check-label" for="notify-email">
+                    <strong>Notificações por Email</strong>
+                    <small class="text-muted d-block">Alertas por email para eventos importantes</small>
+                </label>
+            </div>
+            
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="notify-telegram">
+                <label class="form-check-label" for="notify-telegram">
+                    <strong>Notificações por Telegram</strong>
+                    <small class="text-muted d-block">Mensagens instantâneas no Telegram</small>
+                </label>
+            </div>
+            
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="notify-browser">
+                <label class="form-check-label" for="notify-browser">
+                    <strong>Notificações no Navegador</strong>
+                    <small class="text-muted d-block">Alertas em tempo real no browser</small>
+                </label>
+            </div>
+        </div>
+
+        <!-- Seção: Configurações de Email -->
+        <div class="mb-4" id="email-settings">
+            <h6 class="border-bottom pb-2">📧 Configurações de Email</h6>
+            
+            <div class="mb-3">
+                <label class="form-label">Email para Notificações</label>
+                <input type="email" class="form-control" id="notify-email-address" 
+                       placeholder="seu-email@exemplo.com" required>
+                <div class="form-text">Email que receberá os alertas do sistema</div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Frequência de Alertas</label>
+                <select class="form-select" id="email-frequency">
+                    <option value="immediate">Imediato (assim que ocorrer)</option>
+                    <option value="hourly">Resumo por Hora</option>
+                    <option value="daily">Resumo Diário</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Seção: Configurações do Telegram -->
+        <div class="mb-4" id="telegram-settings" style="display: none;">
+            <h6 class="border-bottom pb-2">📱 Configurações do Telegram</h6>
+            
+            <div class="mb-3">
+                <label class="form-label">Chat ID do Telegram</label>
+                <input type="text" class="form-control" id="telegram-chat-id" 
+                       placeholder="123456789">
+                <div class="form-text">ID do chat onde enviar notificações</div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Token do Bot</label>
+                <input type="password" class="form-control" id="telegram-bot-token" 
+                       placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+                <div class="form-text">Token do bot do Telegram</div>
+            </div>
+            
+            <button type="button" class="btn btn-outline-primary btn-sm" id="test-telegram">
+                <i class="bi bi-send"></i> Testar Conexão
+            </button>
+        </div>
+
+        <!-- Seção: Eventos para Notificar -->
+        <div class="mb-4">
+            <h6 class="border-bottom pb-2">⚠️ Eventos para Notificar</h6>
+            
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="alert-saldo-baixo">
+                <label class="form-check-label" for="alert-saldo-baixo">
+                    Saldo de energia baixo
+                </label>
+            </div>
+            
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="alert-consumo-pico">
+                <label class="form-check-label" for="alert-consumo-pico">
+                    Consumo em pico
+                </label>
+            </div>
+            
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="alert-reles-desligados">
+                <label class="form-check-label" for="alert-reles-desligados">
+                    Relés desligados automaticamente
+                </label>
+            </div>
+            
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="alert-pzem-offline">
+                <label class="form-check-label" for="alert-pzem-offline">
+                    PZEM desconectado
+                </label>
+            </div>
+            
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="alert-erro-sistema">
+                <label class="form-check-label" for="alert-erro-sistema">
+                    Erros no sistema
+                </label>
+            </div>
+        </div>
+
+        <!-- Seção: Teste de Notificações -->
+        <div class="mb-3">
+            <h6 class="border-bottom pb-2">🧪 Testar Notificações</h6>
+            <div class="d-grid gap-2 d-md-flex">
+                <button type="button" class="btn btn-outline-success btn-sm" id="test-email">
+                    <i class="bi bi-envelope"></i> Testar Email
+                </button>
+                <button type="button" class="btn btn-outline-info btn-sm" id="test-browser">
+                    <i class="bi bi-bell"></i> Testar Browser
+                </button>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-check-circle"></i> Salvar Configurações de Notificação
+        </button>
+    </form>
+</div>

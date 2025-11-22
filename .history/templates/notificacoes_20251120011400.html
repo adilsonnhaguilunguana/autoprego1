@@ -1,0 +1,262 @@
+<!-- templates/notificacoes.html -->
+<div class="config-panel">
+    <h5><i class="bi bi-bell"></i> Sistema de Notificações</h5>
+    <form id="notification-config-form">
+        <!-- Seção: Configurações do Telegram -->
+        <div class="mb-4">
+            <h6 class="border-bottom pb-2">📱 Configurações do Telegram</h6>
+            
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="notify-telegram">
+                <label class="form-check-label" for="notify-telegram">
+                    <strong>Notificações por Telegram</strong>
+                    <small class="text-muted d-block">Mensagens instantâneas no Telegram</small>
+                </label>
+            </div>
+            
+            <div id="telegram-settings">
+                <div class="mb-3">
+                    <label class="form-label">Token do Bot do Telegram</label>
+                    <input type="password" class="form-control" id="telegram-bot-token" 
+                           placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+                           value="TEU_TOKEN_DO_BOT_AQUI">
+                    <div class="form-text">
+                        Obtenha o token criando um bot com @BotFather no Telegram
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Chat ID do Telegram</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="telegram-chat-id" 
+                               placeholder="123456789"
+                               value="TEU_CHAT_ID_AQUI">
+                        <button type="button" class="btn btn-outline-secondary" onclick="obterChatId()">
+                            <i class="bi bi-question-circle"></i> Como obter?
+                        </button>
+                    </div>
+                    <div class="form-text">
+                        ID do chat onde enviar notificações
+                    </div>
+                </div>
+                
+                <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="test-telegram">
+                    <i class="bi bi-send"></i> Testar Conexão com Telegram
+                </button>
+            </div>
+        </div>
+
+        <!-- Seção: Configurações de Email -->
+        <div class="mb-4">
+            <h6 class="border-bottom pb-2">📧 Configurações de Email</h6>
+            
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="notify-email">
+                <label class="form-check-label" for="notify-email">
+                    <strong>Notificações por Email</strong>
+                    <small class="text-muted d-block">Alertas por email para eventos importantes</small>
+                </label>
+            </div>
+            
+            <div id="email-settings">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Servidor SMTP</label>
+                            <input type="text" class="form-control" id="smtp-server" 
+                                   placeholder="smtp.gmail.com"
+                                   value="smtp.gmail.com">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Porta SMTP</label>
+                            <input type="number" class="form-control" id="smtp-port" 
+                                   value="587" min="1" max="65535">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Email de Envio</label>
+                    <input type="email" class="form-control" id="email-sender" 
+                           placeholder="teuemail@gmail.com"
+                           value="teuemail@gmail.com">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Senha do Email</label>
+                    <input type="password" class="form-control" id="email-password" 
+                           placeholder="Sua senha de app"
+                           value="tua_senha_de_app_aqui">
+                    <div class="form-text">
+                        Use senha de aplicativo para Gmail ou senha normal para outros provedores
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Email para Notificações</label>
+                    <input type="email" class="form-control" id="notify-email-address" 
+                           placeholder="destinatario@gmail.com"
+                           value="destinatario@gmail.com">
+                    <div class="form-text">Email que receberá os alertas do sistema</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Frequência de Alertas</label>
+                    <select class="form-select" id="email-frequency">
+                        <option value="immediate">Imediato (assim que ocorrer)</option>
+                        <option value="hourly">Resumo por Hora</option>
+                        <option value="daily">Resumo Diário</option>
+                    </select>
+                </div>
+                
+                <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="test-email">
+                    <i class="bi bi-envelope"></i> Testar Configuração de Email
+                </button>
+            </div>
+        </div>
+
+        <!-- Seção: Notificações no Navegador -->
+        <div class="mb-4">
+            <h6 class="border-bottom pb-2">🔔 Notificações no Navegador</h6>
+            
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="notify-browser">
+                <label class="form-check-label" for="notify-browser">
+                    <strong>Notificações no Navegador</strong>
+                    <small class="text-muted d-block">Alertas em tempo real no browser</small>
+                </label>
+            </div>
+            
+            <div class="alert alert-info">
+                <small>
+                    <i class="bi bi-info-circle"></i> 
+                    As notificações do navegador funcionam apenas se você permitir as notificações neste site.
+                    Clique em "Testar Notificação" para solicitar permissão.
+                </small>
+            </div>
+            
+            <button type="button" class="btn btn-outline-info btn-sm" id="test-browser">
+                <i class="bi bi-bell"></i> Testar Notificação no Navegador
+            </button>
+        </div>
+
+        <!-- Seção: Eventos para Notificar -->
+<!-- Na seção "Eventos para Notificar" -->
+<div class="mb-4">
+    <h6 class="border-bottom pb-2">⚠️ Eventos para Notificar</h6>
+    
+    <!-- Saldo Baixo com Configuração Personalizada -->
+    <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="alert-saldo-baixo">
+        <label class="form-check-label" for="alert-saldo-baixo">
+            <strong>Saldo de energia baixo</strong>
+        </label>
+    </div>
+    
+    <!-- Configuração do Limite (aparece apenas quando selecionado) -->
+            <div class="mb-3 ms-4 border-start border-3 ps-3" id="saldo-baixo-config" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            <i class="bi bi-exclamation-triangle text-warning"></i>
+                            Alertar quando saldo ficar abaixo de:
+                        </label>
+                        <div class="input-group">
+                            <input type="number" 
+                                class="form-control" 
+                                id="saldo-baixo-limite" 
+                                step="0.1" 
+                                min="0.1" 
+                                max="100" 
+                                value="5.0"
+                                placeholder="5.0">
+                            <span class="input-group-text">kWh</span>
+                        </div>
+                        <div class="form-text">
+                            ⚠️ O sistema enviará alerta quando <strong>saldo_kwh ≤ este valor</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body py-2">
+                                <small>
+                                    <strong>Exemplo:</strong><br>
+                                    • Se definir <strong>5.0 kWh</strong><br>
+                                    • Alerta quando saldo ≤ 5.0 kWh<br>
+                                    • Valor em MZN: <span id="valor-exemplo">0.00</span> MZN
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Outros eventos (mantenha os existentes) -->
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="alert-consumo-pico">
+                <label class="form-check-label" for="alert-consumo-pico">
+                    Consumo em pico
+                </label>
+            </div>
+            
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="alert-reles-desligados">
+                <label class="form-check-label" for="alert-reles-desligados">
+                    Relés desligados automaticamente
+                </label>
+            </div>
+            
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="alert-pzem-offline">
+                <label class="form-check-label" for="alert-pzem-offline">
+                    PZEM desconectado
+                </label>
+            </div>
+            
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="alert-erro-sistema">
+                <label class="form-check-label" for="alert-erro-sistema">
+                    Erros no sistema
+                </label>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-check-circle"></i> Salvar Configurações de Notificação
+        </button>
+    </form>
+</div>
+
+<!-- Modal de ajuda para Telegram -->
+<div class="modal fade" id="telegramHelpModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Como obter o Chat ID do Telegram</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ol>
+                    <li>Envie uma mensagem para <strong>@userinfobot</strong> no Telegram</li>
+                    <li>O bot responderá com suas informações</li>
+                    <li>Copie o número do <strong>"Id"</strong></li>
+                    <li>Cole no campo "Chat ID" acima</li>
+                </ol>
+                <div class="alert alert-warning">
+                    <small>
+                        <strong>Dica:</strong> Para obter o token do bot, converse com 
+                        <strong>@BotFather</strong> e crie um novo bot.
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a href="https://t.me/userinfobot" target="_blank" class="btn btn-primary">
+                    <i class="bi bi-telegram"></i> Abrir Telegram
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
