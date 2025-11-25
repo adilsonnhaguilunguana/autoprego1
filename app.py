@@ -197,58 +197,675 @@ class ReleLog(db.Model):
             "modo_operacao": self.modo_operacao,
             "saldo_kwh": self.saldo_kwh
         }
-class Configuracao(db.Model):
-    __tablename__ = 'configuracoes'
-    id = db.Column(db.Integer, primary_key=True)
+olha esse codigo:# ==========================================================
+# ROTAS DE CONFIGURAÇÃO DE NOTIFICAÇÕES
+# ==========================================================
+
+@app.route('/config/notificacoes', methods=['GET'])
+@login_required
+def get_notificacoes_config():
+    """Obter configurações de notificação"""
+    config = Configuracao.query.first()
+    if not config:
+        return jsonify({
+            # Telegram
+            "notify_telegram": False,
+            "telegram_bot_token": "",
+            "telegram_chat_id": "",
+            
+            # Email
+            "notify_email": True,
+            "smtp_server": "smtp.gmail.com",
+            "smtp_port": 587,
+            "email_sender": "",
+            "email_password": "",
+            "email_notificacao": "",
+            "email_frequency": "immediate",
+            
+            # Browser
+            "notify_browser": True,
+            
+            # Limite de saldo baixo
+            "saldo_baixo_limite": 5.0,
+            
+            # Alertas
+            "alert_saldo_baixo": True,
+            "alert_consumo_pico": True,
+            "alert_reles_desligados": True,
+            "alert_pzem_offline": True,
+            "alert_erro_sistema": True
+        })
     
-    # ==========================================================
-    # CONFIGURAÇÕES DE LIMITES E CONSUMO
-    # ==========================================================
-    limite_pzem1 = db.Column(db.Float, default=1000.0)
-    limite_pzem2 = db.Column(db.Float, default=1000.0)
-    preco_kwh = db.Column(db.Float, default=0.75)
-    saldo_kwh = db.Column(db.Float, default=0.0)
-    prioridade_minima_emergencia = db.Column(db.Integer, default=3)
+    return jsonify({
+        # Telegram
+        "notify_telegram": config.notify_telegram,
+        "telegram_bot_token": config.telegram_bot_token or "",
+        "telegram_chat_id": config.telegram_chat_id or "",
+        
+        # Email
+        "notify_email": config.notify_email,
+        "smtp_server": config.smtp_server or "smtp.gmail.com",
+        "smtp_port": config.smtp_port or 587,
+        "email_sender": config.email_sender or "",
+        "email_password": config.email_password or "",
+        "email_notificacao": config.email_notificacao or "",
+        "email_frequency": config.email_frequency or "immediate",
+        
+        # Browser
+        "notify_browser": config.notify_browser,
+        
+        # Limite de saldo baixo
+        "saldo_baixo_limite": config.saldo_baixo_limite or 5.0,
+        
+        # Alertas
+        "alert_saldo_baixo": config.alert_saldo_baixo,
+        "alert_consumo_pico": config.alert_consumo_pico,
+        "alert_reles_desligados": config.alert_reles_desligados,
+        "alert_pzem_offline": config.alert_pzem_offline,
+        "alert_erro_sistema": config.alert_erro_sistema
+    })
+
+@app.route('/config/notificacoes', methods=['POST'])
+@login_required
+def save_notificacoes_config():
+    """Salvar configurações de notificação"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "Nenhum dado recebido"}), 400
+
+    config = Configuracao.query.first()
+    if not config:
+        config = Configuracao()
+        db.session.add(config)
+
+    try:
+        print(f"💾 Salvando configurações de notificação...")
+        
+        # Configurações do Telegram
+        if 'telegram_bot_token' in data:
+            config.telegram_bot_token = data['telegram_bot_token']
+            print(f"   🤖 Token Telegram: {len(data['telegram_bot_token'])} caracteres")
+        
+        if 'telegram_chat_id' in data:
+            config.telegram_chat_id = data['telegram_chat_id']
+            print(f"   💬 Chat ID: {data['telegram_chat_id']}")
+        
+        if 'notify_telegram' in data:
+            config.notify_telegram = bool(data['notify_telegram'])
+            print(f"   📱 Notificar Telegram: {config.notify_telegram}")
+        
+        # Configurações de Email
+        if 'smtp_server' in data:
+            config.smtp_server = data['smtp_server'].strip() if data['smtp_server'] else 'smtp.gmail.com'
+            print(f"   📧 SMTP Server: '{config.smtp_server}'")
+        
+        if 'smtp_port' in data:
+            try:
+                config.smtp_port = int(data['smtp_port']) if data['smtp_port'] else 587
+            except (ValueError, TypeError):
+                config.smtp_port = 587
+            print(f"   🔌 SMTP Port: {config.smtp_port}")
+        
+        if 'email_sender' in data:
+            config.email_sender = data['email_sender'].strip() if data['email_sender'] else ''
+            print(f"   📨 Email Sender: '{config.email_sender}'")
+        
+        if 'email_password' in data:
+            config.email_password = data['email_password'] if data['email_password'] else ''
+            print(f"   🔐 Email Password: {'*' * len(data['email_password'])}")
+        
+        if 'email_notificacao' in data:
+            config.email_notificacao = data['email_notificacao'].strip() if data['email_notificacao'] else ''
+            print(f"   🎯 Email Notificação: '{config.email_notificacao}'")
+        
+        if 'notify_email' in data:
+            config.notify_email = bool(data['notify_email'])
+            print(f"   📧 Notificar Email: {config.notify_email}")
+        
+        if 'email_frequency' in data:
+            config.email_frequency = data['email_frequency'] if data['email_frequency'] else 'immediate'
+            print(f"   ⏰ Frequência Email: {config.email_frequency}")
+        
+        # Configurações do Browser
+        if 'notify_browser' in data:
+            config.notify_browser = bool(data['notify_browser'])
+            print(f"   🔔 Notificar Browser: {config.notify_browser}")
+        
+        # Limite de saldo baixo
+        if 'saldo_baixo_limite' in data:
+            try:
+                config.saldo_baixo_limite = float(data['saldo_baixo_limite'])
+                print(f"   💰 Limite saldo baixo: {config.saldo_baixo_limite:.1f} kWh")
+            except (ValueError, TypeError):
+                config.saldo_baixo_limite = 5.0
+        
+        # Alertas específicos
+        alertas = [
+            'alert_saldo_baixo', 'alert_consumo_pico', 'alert_reles_desligados',
+            'alert_pzem_offline', 'alert_erro_sistema'
+        ]
+        
+        for alerta in alertas:
+            if alerta in data:
+                setattr(config, alerta, bool(data[alerta]))
+                print(f"   ⚠️ {alerta}: {bool(data[alerta])}")
+
+        db.session.commit()
+        print("✅ Configurações salvas com sucesso!")
+        return jsonify({"success": True, "message": "Configurações de notificação salvas com sucesso!"})
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Erro ao salvar: {str(e)}")
+        return jsonify({"success": False, "message": f"Erro ao salvar: {str(e)}"}), 500
+
+@app.route('/config/notificacoes/testar', methods=['POST'])
+@login_required
+def testar_notificacao():
+    """Testar notificações"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "Nenhum dado recebido"}), 400
+
+    tipo = data.get('tipo')
+    config = Configuracao.query.first()
     
-    # ==========================================================
-    # CONFIGURAÇÕES FINANCEIRAS E TAXAS
-    # ==========================================================
-    taxa_lixo = db.Column(db.Float, default=5.0)  # MZN fixos
-    taxa_radio = db.Column(db.Float, default=3.0)  # MZN fixos
-    iva_percent = db.Column(db.Float, default=16.0)  # Percentual
+    try:
+        if tipo == 'email':
+            return testar_email(config)
+        
+        elif tipo == 'telegram':
+            return testar_telegram(config)
+        
+        elif tipo == 'browser':
+            return jsonify({"success": True, "message": "Notificação de browser configurada!"})
+        
+        else:
+            return jsonify({"success": False, "message": "Tipo de notificação inválido"}), 400
+            
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Erro ao testar notificação: {str(e)}"}), 500
+
+def testar_telegram(config):
+    """Testar conexão com Telegram"""
+    if not config.telegram_bot_token or not config.telegram_chat_id:
+        return jsonify({"success": False, "message": "Token do bot ou Chat ID não configurado"})
     
-    # ==========================================================
-    # CONFIGURAÇÕES DE NOTIFICAÇÃO - TELEGRAM
-    # ==========================================================
-    telegram_bot_token = db.Column(db.String(200), default='')
-    telegram_chat_id = db.Column(db.String(50), default='')
-    notify_telegram = db.Column(db.Boolean, default=False)
+    try:
+        import requests
+        
+        # Testar se o bot token é válido
+        bot_info_url = f"https://api.telegram.org/bot{config.telegram_bot_token}/getMe"
+        bot_response = requests.get(bot_info_url, timeout=10)
+        
+        if not bot_response.json().get('ok'):
+            return jsonify({"success": False, "message": "Token do bot inválido"})
+        
+        # Enviar mensagem de teste
+        message_url = f"https://api.telegram.org/bot{config.telegram_bot_token}/sendMessage"
+        payload = {
+            'chat_id': config.telegram_chat_id,
+            'text': '✅ Teste do Sistema de Energia\nEsta é uma mensagem de teste do seu sistema de monitoramento de energia.',
+            'parse_mode': 'HTML'
+        }
+        
+        response = requests.post(message_url, data=payload, timeout=10)
+        
+        if response.json().get('ok'):
+            return jsonify({"success": True, "message": "Mensagem de teste enviada com sucesso para o Telegram!"})
+        else:
+            error = response.json().get('description', 'Erro desconhecido')
+            return jsonify({"success": False, "message": f"Erro ao enviar mensagem: {error}"})
+            
+    except requests.exceptions.Timeout:
+        return jsonify({"success": False, "message": "Timeout na conexão com Telegram"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Erro de conexão: {str(e)}"})
+
+def testar_email(config):
+    """Testar configuração de email"""
+    print(f"🔍 Validando configurações de email...")
+    print(f"📧 SMTP Server: '{config.smtp_server}'")
+    print(f"🔌 SMTP Port: {config.smtp_port}")
+    print(f"📨 Email Sender: '{config.email_sender}'")
+    print(f"🔐 Email Password: {'*' * len(config.email_password) if config.email_password else 'VAZIO'}")
+    print(f"🎯 Email Notificação: '{config.email_notificacao}'")
     
-    # ==========================================================
-    # CONFIGURAÇÕES DE NOTIFICAÇÃO - EMAIL
-    # ==========================================================
-    smtp_server = db.Column(db.String(100), default='smtp.gmail.com')
-    smtp_port = db.Column(db.Integer, default=587)
-    email_sender = db.Column(db.String(120), default='')
-    email_password = db.Column(db.String(200), default='')
-    email_notificacao = db.Column(db.String(120), default='admin@example.com')
-    notify_email = db.Column(db.Boolean, default=True)
-    email_frequency = db.Column(db.String(20), default='immediate')
+    # Validação mais flexível
+    if not config.smtp_server or not config.smtp_server.strip():
+        config.smtp_server = "smtp.gmail.com"
+        print("⚠️  SMTP Server não configurado, usando padrão: smtp.gmail.com")
     
-    # ==========================================================
-    # CONFIGURAÇÕES DE NOTIFICAÇÃO - BROWSER
-    # ==========================================================
-    notify_browser = db.Column(db.Boolean, default=True)
+    if not config.smtp_port or config.smtp_port <= 0:
+        config.smtp_port = 587
+        print("⚠️  Porta SMTP inválida, usando padrão: 587")
     
-    # ==========================================================
-    # CONFIGURAÇÕES DE ALERTAS ESPECÍFICOS
-    # ==========================================================
-    alert_saldo_baixo = db.Column(db.Boolean, default=True)
-    alert_consumo_pico = db.Column(db.Boolean, default=True)
-    alert_reles_desligados = db.Column(db.Boolean, default=True)
-    alert_pzem_offline = db.Column(db.Boolean, default=True)
-    alert_erro_sistema = db.Column(db.Boolean, default=True)
-    saldo_baixo_limite = db.Column(db.Float, default=5.0)
+    if not config.email_sender or not config.email_sender.strip():
+        return jsonify({"success": False, "message": "Email de envio não configurado"})
+    
+    if not config.email_password or not config.email_password.strip():
+        return jsonify({"success": False, "message": "Senha do email não configurada"})
+    
+    if not config.email_notificacao or not config.email_notificacao.strip():
+        return jsonify({"success": False, "message": "Email para notificações não configurado"})
+    
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        # Criar mensagem de teste
+        msg = MIMEMultipart()
+        msg['From'] = config.email_sender
+        msg['To'] = config.email_notificacao
+        msg['Subject'] = '✅ Teste do Sistema de Energia'
+        
+        body = f"""
+        <h3>Teste do Sistema de Monitoramento de Energia</h3>
+        <p>Esta é uma mensagem de teste para verificar a configuração do email.</p>
+        <p><strong>Configuração testada:</strong></p>
+        <ul>
+            <li>Servidor: {config.smtp_server}:{config.smtp_port}</li>
+            <li>Email de envio: {config.email_sender}</li>
+            <li>Email de destino: {config.email_notificacao}</li>
+        </ul>
+        <p>Se você recebeu esta mensagem, o sistema de notificações por email está funcionando corretamente!</p>
+        <hr>
+        <small>Sistema de Automação Residencial - {datetime.now().strftime('%d/%m/%Y %H:%M')}</small>
+        """
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        print(f"🔄 Conectando ao servidor {config.smtp_server}:{config.smtp_port}...")
+        
+        # Conexão com tratamento de diferentes portas
+        if config.smtp_port == 465:
+            print("🔒 Usando SSL (porta 465)")
+            server = smtplib.SMTP_SSL(config.smtp_server, config.smtp_port, timeout=15)
+        else:
+            print("🔐 Usando TLS (porta 587)")
+            server = smtplib.SMTP(config.smtp_server, config.smtp_port, timeout=15)
+            server.starttls()
+        
+        print(f"🔐 Efetuando login como {config.email_sender}...")
+        server.login(config.email_sender, config.email_password)
+        
+        print(f"📤 Enviando email para {config.email_notificacao}...")
+        text = msg.as_string()
+        server.sendmail(config.email_sender, config.email_notificacao, text)
+        server.quit()
+        
+        print(f"✅ Email de teste enviado com sucesso!")
+        return jsonify({"success": True, "message": "Email de teste enviado com sucesso!"})
+        
+    except smtplib.SMTPAuthenticationError as e:
+        error_msg = f"Erro de autenticação: {str(e)}"
+        print(f"❌ {error_msg}")
+        
+        if "gmail.com" in config.email_sender.lower():
+            error_msg += "\n💡 Dica: Use uma SENHA DE APLICATIVO do Gmail, não a senha da conta."
+            
+        return jsonify({"success": False, "message": error_msg})
+    
+    except Exception as e:
+        error_msg = f"Erro ao enviar email: {str(e)}"
+        print(f"❌ {error_msg}")
+        return jsonify({"success": False, "message": error_msg})
+
+# ==========================================================
+# SERVIÇO DE NOTIFICAÇÕES - INTEGRAÇÃO COMPLETA
+# ==========================================================
+
+class ServicoNotificacoes:
+    def __init__(self):
+        self.ultima_verificacao = None
+        self.alertas_enviados = set()
+        self.ultimo_email_diario = None
+
+    def verificar_todas_notificacoes(self):
+        """Verifica todos os eventos e envia notificações se necessário"""
+        try:
+            config = Configuracao.query.first()
+            if not config:
+                return
+
+            print("🔔 Verificando notificações...")
+
+            # 1. SALDO BAIXO - COM LIMITE PERSONALIZADO
+            if config.alert_saldo_baixo:
+                self.verificar_saldo_baixo(config)
+
+            # 2. CONSUMO EM PICO
+            if config.alert_consumo_pico:
+                self.verificar_consumo_pico(config)
+
+            # 3. RELÉS DESLIGADOS
+            if config.alert_reles_desligados:
+                self.verificar_reles_desligados(config)
+
+            # 4. PZEM OFFLINE
+            if config.alert_pzem_offline:
+                self.verificar_pzem_offline(config)
+
+            # 5. ERROS NO SISTEMA
+            if config.alert_erro_sistema:
+                self.verificar_erros_sistema(config)
+
+            # Limpar alertas antigos
+            self.limpar_alertas_antigos()
+
+        except Exception as e:
+            print(f"❌ Erro na verificação de notificações: {e}")
+
+    def verificar_saldo_baixo(self, config):
+        """Verifica se o saldo está baixo usando o limite personalizado"""
+        limite_saldo_baixo = config.saldo_baixo_limite or 5.0  # kWh
+        
+        if config.saldo_kwh <= limite_saldo_baixo:
+            alerta_id = f"saldo_baixo_{datetime.now().strftime('%Y%m%d%H')}"
+            
+            if alerta_id not in self.alertas_enviados:
+                mensagem = (
+                    f"⚠️ **SALDO BAIXO** ⚠️\n"
+                    f"Saldo atual: {config.saldo_kwh:.2f} kWh\n"
+                    f"Valor: {config.saldo_kwh * config.preco_kwh:.2f} MZN\n"
+                    f"Limite configurado: {limite_saldo_baixo} kWh\n"
+                    f"⏰ {datetime.now().strftime('%H:%M')}"
+                )
+                
+                self.enviar_notificacao('saldo_baixo', mensagem, config)
+                self.alertas_enviados.add(alerta_id)
+                print(f"🔔 Alerta de saldo baixo: {config.saldo_kwh:.2f} kWh ≤ {limite_saldo_baixo} kWh")
+
+    def verificar_consumo_pico(self, config):
+        """Verifica se o consumo está em pico (acima de 80% do limite)"""
+        # Obter dados dos PZEMs (ajuste conforme sua estrutura de dados)
+        consumo_total = 0
+        try:
+            # Exemplo - ajuste para seus dados reais
+            from app import dados_pzem  # ou importe de onde vem seus dados
+            consumo_total = dados_pzem.get('pzem1', {}).get('power', 0) + dados_pzem.get('pzem2', {}).get('power', 0)
+        except:
+            # Fallback caso não consiga obter os dados
+            consumo_total = 0
+        
+        limite_total = config.limite_pzem1 + config.limite_pzem2
+        limite_pico = limite_total * 0.8  # 80% do limite total
+        
+        if consumo_total >= limite_pico:
+            alerta_id = f"consumo_pico_{datetime.now().strftime('%Y%m%d%H')}"
+            
+            if alerta_id not in self.alertas_enviados:
+                percentual = (consumo_total / limite_total) * 100
+                mensagem = (
+                    f"⚡ **CONSUMO EM PICO** ⚡\n"
+                    f"Consumo atual: {consumo_total:.0f}W\n"
+                    f"Limite do sistema: {limite_total:.0f}W\n"
+                    f"Utilização: {percentual:.1f}%\n"
+                    f"⏰ {datetime.now().strftime('%H:%M')}"
+                )
+                
+                self.enviar_notificacao('consumo_pico', mensagem, config)
+                self.alertas_enviados.add(alerta_id)
+                print(f"🔔 Alerta de consumo em pico: {consumo_total:.0f}W")
+
+    def verificar_reles_desligados(self, config):
+        """Verifica se relés foram desligados automaticamente recentemente"""
+        try:
+            from app import comandos_pendentes, dados_lock
+            
+            with dados_lock:
+                comandos_desligar = [cmd for cmd in comandos_pendentes if cmd.endswith('_OFF')]
+            
+            if comandos_desligar:
+                for comando in comandos_desligar:
+                    alerta_id = f"rele_desligado_{comando}_{datetime.now().strftime('%Y%m%d%H')}"
+                    
+                    if alerta_id not in self.alertas_enviados:
+                        rele_id = comando.replace('RELE', '').replace('_OFF', '')
+                        mensagem = (
+                            f"🔌 **RELÉ DESLIGADO** 🔌\n"
+                            f"Relé {rele_id} foi desligado automaticamente\n"
+                            f"Motivo: Saldo baixo ou limite atingido\n"
+                            f"Saldo atual: {config.saldo_kwh:.2f} kWh\n"
+                            f"⏰ {datetime.now().strftime('%H:%M')}"
+                        )
+                        
+                        self.enviar_notificacao('reles_desligados', mensagem, config)
+                        self.alertas_enviados.add(alerta_id)
+                        print(f"🔔 Alerta de relé desligado: {comando}")
+        except Exception as e:
+            print(f"❌ Erro ao verificar relés desligados: {e}")
+
+    def verificar_pzem_offline(self, config):
+        """Verifica se algum PZEM está offline"""
+        try:
+            from app import dados_pzem
+            
+            agora = datetime.now(timezone.utc)
+            
+            for pzem_id in [1, 2]:
+                pzem_key = f'pzem{pzem_id}'
+                ultima_atualizacao = dados_pzem.get(pzem_key, {}).get('ultima_atualizacao')
+                
+                if ultima_atualizacao:
+                    tempo_desconectado = (agora - ultima_atualizacao).total_seconds()
+                    
+                    # Considera offline se não atualizou há mais de 2 minutos
+                    if tempo_desconectado > 120:  # 2 minutos
+                        alerta_id = f"pzem_offline_{pzem_id}_{datetime.now().strftime('%Y%m%d%H')}"
+                        
+                        if alerta_id not in self.alertas_enviados:
+                            mensagem = (
+                                f"❌ **PZEM OFFLINE** ❌\n"
+                                f"PZEM {pzem_id} desconectado\n"
+                                f"Tempo offline: {tempo_desconectado/60:.1f} minutos\n"
+                                f"Última atualização: {ultima_atualizacao.strftime('%H:%M')}\n"
+                                f"⏰ {datetime.now().strftime('%H:%M')}"
+                            )
+                            
+                            self.enviar_notificacao('pzem_offline', mensagem, config)
+                            self.alertas_enviados.add(alerta_id)
+                            print(f"🔔 Alerta de PZEM offline: {pzem_key}")
+        except Exception as e:
+            print(f"❌ Erro ao verificar PZEM offline: {e}")
+
+    def verificar_erros_sistema(self, config):
+        """Monitora erros no sistema"""
+        # Esta função pode ser expandida para monitorar logs específicos
+        # Por enquanto, é um placeholder para futuras implementações
+        pass
+
+    def enviar_notificacao(self, tipo, mensagem, config):
+        """Envia notificação por todos os canais configurados"""
+        try:
+            # Telegram
+            if config.notify_telegram and config.telegram_bot_token and config.telegram_chat_id:
+                self.enviar_telegram(mensagem, config)
+            
+            # Email (apenas para alertas críticos)
+            if config.notify_email and tipo in ['saldo_baixo', 'pzem_offline', 'erro_sistema']:
+                self.enviar_email(tipo, mensagem, config)
+            
+            # Browser (sempre que possível)
+            if config.notify_browser:
+                self.enviar_browser(tipo, mensagem)
+                
+        except Exception as e:
+            print(f"❌ Erro ao enviar notificação: {e}")
+
+    def enviar_telegram(self, mensagem, config):
+        """Envia mensagem via Telegram (compatível Railway)"""
+        try:
+            import requests
+
+            url = f"https://api.telegram.org/bot{config.telegram_bot_token}/sendMessage"
+
+            payload = {
+                'chat_id': str(config.telegram_chat_id).strip(),
+                'text': mensagem,
+                'parse_mode': 'HTML'
+            }
+
+            # ⚠️ Railway precisa JSON + cabeçalho
+            response = requests.post(
+                url,
+                json=payload,
+                timeout=10,
+                headers={"Content-Type": "application/json"}
+            )
+
+            if response.json().get('ok'):
+                print("✅ Notificação Telegram enviada")
+            else:
+                print(f"❌ Erro Telegram:", response.json())
+
+        except Exception as e:
+            print(f"❌ Erro ao enviar Telegram: {e}")
+
+
+        def enviar_email(self, tipo, mensagem, config):
+            """Envia email de notificação"""
+            try:
+                import smtplib
+                from email.mime.text import MIMEText
+                from email.mime.multipart import MIMEMultipart
+                
+                # Configurar mensagem
+                msg = MIMEMultipart()
+                msg['From'] = config.email_sender
+                msg['To'] = config.email_notificacao
+                msg['Subject'] = f"🔔 Alerta do Sistema - {tipo.upper()}"
+                
+                # Corpo do email
+                body = f"""
+                <h2>Alerta do Sistema de Energia</h2>
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
+                    {mensagem.replace('\n', '<br>')}
+                </div>
+                <br>
+                <small>Sistema de Automação Residencial - {datetime.now().strftime('%d/%m/%Y %H:%M')}</small>
+                """
+                
+                msg.attach(MIMEText(body, 'html'))
+                
+                # Enviar email
+                if config.smtp_port == 465:
+                    server = smtplib.SMTP_SSL(config.smtp_server, config.smtp_port, timeout=15)
+                else:
+                    server = smtplib.SMTP(config.smtp_server, config.smtp_port, timeout=15)
+                    server.starttls()
+                
+                server.login(config.email_sender, config.email_password)
+                server.sendmail(config.email_sender, config.email_notificacao, msg.as_string())
+                server.quit()
+                
+                print("✅ Notificação Email enviada")
+                
+            except Exception as e:
+                print(f"❌ Erro ao enviar Email: {e}")
+
+        def enviar_browser(self, tipo, mensagem):
+            """Envia notificação no navegador (será capturada pelo JavaScript)"""
+            # Esta notificação será processada pelo frontend
+            print(f"🔔 Notificação Browser: {tipo} - {mensagem}")
+
+        def limpar_alertas_antigos(self):
+            """Remove alertas antigos do conjunto para evitar duplicação"""
+            agora = datetime.now()
+            alertas_para_remover = []
+            
+            for alerta_id in self.alertas_enviados:
+                # Remove alertas com mais de 24 horas
+                if agora.strftime('%Y%m%d') not in alerta_id:
+                    alertas_para_remover.append(alerta_id)
+            
+            for alerta_id in alertas_para_remover:
+                self.alertas_enviados.remove(alerta_id)
+
+# ==========================================================
+# INICIALIZAÇÃO DO SERVIÇO
+# ==========================================================
+servico_notificacoes = ServicoNotificacoes()
+
+# ==========================================================
+# ROTAS ADICIONAIS PARA DEBUG
+# ==========================================================
+
+@app.route('/config/notificacoes/debug-detalhado', methods=['GET'])
+@login_required
+def debug_notificacoes_detalhado():
+    """Debug detalhado das configurações de notificação"""
+    config = Configuracao.query.first()
+    if not config:
+        return jsonify({"error": "Configuração não encontrada"}), 404
+    
+    return jsonify({
+        "all_config_fields": {
+            "smtp_server": {
+                "value": config.smtp_server,
+                "type": type(config.smtp_server).__name__,
+                "is_empty": not bool(config.smtp_server and config.smtp_server.strip())
+            },
+            "smtp_port": {
+                "value": config.smtp_port,
+                "type": type(config.smtp_port).__name__
+            },
+            "email_sender": {
+                "value": config.email_sender,
+                "type": type(config.email_sender).__name__,
+                "is_empty": not bool(config.email_sender and config.email_sender.strip())
+            },
+            "email_password": {
+                "value": "***" if config.email_password else "",
+                "length": len(config.email_password) if config.email_password else 0,
+                "is_empty": not bool(config.email_password and config.email_password.strip())
+            },
+            "email_notificacao": {
+                "value": config.email_notificacao,
+                "type": type(config.email_notificacao).__name__,
+                "is_empty": not bool(config.email_notificacao and config.email_notificacao.strip())
+            },
+            "telegram_bot_token": {
+                "value": "***" if config.telegram_bot_token else "",
+                "length": len(config.telegram_bot_token) if config.telegram_bot_token else 0,
+                "is_empty": not bool(config.telegram_bot_token and config.telegram_bot_token.strip())
+            },
+            "telegram_chat_id": {
+                "value": config.telegram_chat_id,
+                "type": type(config.telegram_chat_id).__name__,
+                "is_empty": not bool(config.telegram_chat_id and config.telegram_chat_id.strip())
+            }
+        }
+    })
+
+@app.route('/config/notificacoes/status', methods=['GET'])
+@login_required
+def status_notificacoes():
+    """Status atual do serviço de notificações"""
+    config = Configuracao.query.first()
+    if not config:
+        return jsonify({"error": "Configuração não encontrada"}), 404
+    
+    return jsonify({
+        "servico_ativos": {
+            "telegram": config.notify_telegram and bool(config.telegram_bot_token and config.telegram_chat_id),
+            "email": config.notify_email and bool(config.email_sender and config.email_password and config.email_notificacao),
+            "browser": config.notify_browser
+        },
+        "alertas_ativos": {
+            "saldo_baixo": config.alert_saldo_baixo,
+            "consumo_pico": config.alert_consumo_pico,
+            "reles_desligados": config.alert_reles_desligados,
+            "pzem_offline": config.alert_pzem_offline,
+            "erro_sistema": config.alert_erro_sistema
+        },
+        "limite_saldo_baixo": config.saldo_baixo_limite,
+        "ultima_verificacao": servico_notificacoes.ultima_verificacao.isoformat() if servico_notificacoes.ultima_verificacao else None,
+        "alertas_pendentes": len(servico_notificacoes.alertas_enviados)
+    })
+
+
     # ==========================================================
     # MÉTODOS DA CLASSE
     # ==========================================================
@@ -292,6 +909,7 @@ class Configuracao(db.Model):
             'alert_pzem_offline': self.alert_pzem_offline,
             'alert_erro_sistema': self.alert_erro_sistema
         }
+
 class Recarga(db.Model):
     __tablename__ = 'recargas'
     id = db.Column(db.Integer, primary_key=True)
