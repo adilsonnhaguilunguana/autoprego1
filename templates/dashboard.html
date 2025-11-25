@@ -834,33 +834,7 @@ html
                 <div class="stat-label">
                     Luminosidade: <span id="r1-luz">--</span>
                 </div>
-       </div>
-                <!-- Painel para Reset de KPIs -->
-            <div class="config-panel mt-3">
-                <h5><i class="bi bi-arrow-repeat"></i> Reset de KPIs</h5>
-
-                <div class="d-flex gap-3 align-items-center">
-                    <select id="select-reset-kpi" class="form-select" style="max-width:300px;">
-                        <option value="">-- Selecionar KPI --</option>
-                        <option value="reset-all">🔄 Resetar TODOS</option>
-
-                        <option value="kpi-current-power">Consumo Atual</option>
-                        <option value="kpi-today-energy">Energia Hoje (kWh)</option>
-                        <option value="kpi-today-cost">Custo Hoje</option>
-                        <option value="kpi-peak-today">Pico Diário</option>
-                        <option value="kpi-peak-time">Hora Pico Dia</option>
-                        <option value="kpi-savings">Saldo de Energia (%)</option>
-                        <option value="kpi-peak-weekly">Pico Semanal</option>
-                        <option value="kpi-peak-weekly-time">Hora Pico Semanal</option>
-                        <option value="kpi-peak-monthly">Pico Mensal</option>
-                        <option value="kpi-peak-monthly-time">Hora Pico Mensal</option>
-                    </select>
-
-                    <button class="btn btn-warning" onclick="resetarKPISelecionado()">
-                        <i class="bi bi-trash"></i> Resetar
-                    </button>
-                </div>
-            </div>
+         </div>
 
     </div>              
     </div>
@@ -1165,6 +1139,32 @@ html
         <h4><i class="bi bi-gear"></i> Configurações do Sistema</h4>
         
         <div class="row">
+
+                        <!-- Painel de Reset dos KPIs (lado direito) -->
+                <div class="config-panel mt-3">
+                    <h5>Reset dos KPIs</h5>
+
+                    <div class="mb-3">
+                        <label class="form-label">Escolha o KPI</label>
+                        <select id="kpi-reset-select" class="form-select">
+                            <option value="all">Todos os KPIs</option>
+                            <option value="currentPower">Consumo Atual</option>
+                            <option value="todayEnergy">Energia Hoje</option>
+                            <option value="todayCost">Custo Hoje</option>
+                            <option value="peakToday">Pico do Dia</option>
+                            <option value="peakWeekly">Pico da Semana</option>
+                            <option value="peakMonthly">Pico do Mês</option>
+                            <option value="savings">Saldo / Economia</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-warning w-100" onclick="resetarKPI()">
+                        <i class="bi bi-arrow-counterclockwise"></i> Resetar KPI
+                    </button>
+
+                    <div id="msg-reset-kpi" class="mt-3"></div>
+                </div>
+
             <!-- Coluna 1: Limites e Preços -->
             <div class="col-md-6">
                 <div class="config-panel">
@@ -1205,6 +1205,7 @@ html
                         <button type="submit" class="btn btn-primary">Salvar Preço e Taxas</button>
                     </form>
                 </div>
+
             </div>
             
             <!-- Coluna 2: Notificações e Recargas -->
