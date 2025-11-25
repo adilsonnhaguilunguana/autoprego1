@@ -724,7 +724,7 @@ class ServicoNotificacoes:
             print(f"❌ Erro ao enviar Telegram: {e}")
 
 
-        def enviar_email(self, tipo, mensagem, config):
+    def enviar_email(self, tipo, mensagem, config):
             """Envia email de notificação"""
             try:
                 import smtplib
@@ -765,12 +765,12 @@ class ServicoNotificacoes:
             except Exception as e:
                 print(f"❌ Erro ao enviar Email: {e}")
 
-        def enviar_browser(self, tipo, mensagem):
+    def enviar_browser(self, tipo, mensagem):
             """Envia notificação no navegador (será capturada pelo JavaScript)"""
             # Esta notificação será processada pelo frontend
             print(f"🔔 Notificação Browser: {tipo} - {mensagem}")
 
-        def limpar_alertas_antigos(self):
+    def limpar_alertas_antigos(self):
             """Remove alertas antigos do conjunto para evitar duplicação"""
             agora = datetime.now()
             alertas_para_remover = []
