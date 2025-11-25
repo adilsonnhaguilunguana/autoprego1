@@ -3375,7 +3375,7 @@ def enviar_comando():
     with dados_lock:
         comandos_pendentes.append(comando)
     return jsonify({"success": True, "message": "Comando enviado com sucesso"})
-@app.route('/api/comandosesp', methods=['GET'])
+@app.route('/api/comandos', methods=['GET'])
 def obter_comando_esp():
     api_key = request.args.get("api_key")
 
