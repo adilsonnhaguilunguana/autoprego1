@@ -1,29 +1,29 @@
-// ==================================================
-// SISTEMA DE AUTOMAÇÃO RESIDENCIAL - ESP8266
-// ==================================================
-// Versão corrigida e testada - COMPLETAMENTE FUNCIONAL
+//INCLUSÕES DE BIBLIOTECAS
+#include <ESP8266WiFi.h>//Controla o WiFi do ESP8266
+#include <ESP8266HTTPClient.h>//Faz requisições HTTP para internet
+#include <WiFiClient.h>// Cliente básico para conexões WiFi
+#include <ArduinoJson.h>//Manipula dados JSON (formato da internet)
+#include <PZEM004Tv30.h>//omunica com medidores PZEM de energia
+#include <WiFiClientSecure.h>// Conexões HTTPS seguras
+#include <Wire.h>//Protocolo I2C para LCD
+#include <LiquidCrystal_I2C.h>//Controla display LCD via I2C
 
-#include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
-#include <WiFiClient.h>
-#include <ArduinoJson.h>
-#include <PZEM004Tv30.h>
-
-
+LiquidCrystal_I2C lcd(0x27, 16, 2);//LCD no endereço 0x27, 16 colunas, 2 linhas,Endereço I2C do módulo, tamanho do display
 // ==================== CONFIGURAÇÕES ====================
-const char* ssid = "Redmi";
-const char* password = "123456789";
-const char* serverURL = "http://172.24.14.16:5000";
-const String apiKey = "SUA_CHAVE_API_SECRETA";
+const char* ssid = "Redmi";//Define o nome da rede WiFi que o ESP8266 vai conectar
+const char* password = "123456789";//Define a senha da rede WiFi
+const char* serverURL = "https://automacaoad.up.railway.app";//Define o endereço do seu servidor web
+const String apiKey = "SUA_CHAVE_API_SECRETA";//Define a chave de autenticação para acessar sua API
+
 
 // ==================== PINAGEM CORRIGIDA ====================
-// ⚠️ CORREÇÃO: Inverter RX/TX para a maioria das placas
-PZEM004Tv30 pzem1(D2, D1);  // RX=D2, TX=D1 (INVERTIDO!)
+//        Inverter RX/TX para a maioria das placas
+PZEM004Tv30 pzem1(D3, D4);  // RX=D2, TX=D1 (INVERTIDO!)
 PZEM004Tv30 pzem2(D6, D5);  // RX=D6, TX=D5 (INVERTIDO!)
 
 // Leitura de LDR com Arduino
 int pinoLDR = A0;   // Pino analógico onde o LDR está ligado
-int valorLuz = 0;
+int valorLuz = 0;   // 
 #define R1 D0
 
 // Configurações dos Relés
@@ -42,12 +42,13 @@ const unsigned long intervaloComandos = 2000;
 const unsigned long intervaloAtualizarNomes = 30000;
 const float LIMITE_POTENCIA_SEGURANCA = 2000.0;
 
+//Tempos e intervalos de resposta do sistema
 // ==================== VARIÁVEIS GLOBAIS ====================
 unsigned long ultimoEnvio = 0;
 unsigned long ultimaLeituraComandos = 0;
 unsigned long ultimaAtualizacaoNomes = 0;
 unsigned long ultimaInfoSistema = 0;
-
+//InicializaçãoInicia o LCD;Inicia o WiFi; Inicializa relésTesta comunicação com os PZEMs; Busca nomes dos relés do servidor;Prepara o sistema para operar
 struct DadosPZEM {
   float voltage;
   float current;
@@ -60,20 +61,35 @@ struct DadosPZEM {
 
 DadosPZEM dadosPzem1, dadosPzem2;
 
-// ==================== SETUP CORRIGIDO ====================
+//INICIO DO CODIGO
+
 void setup() {
   Serial.begin(115200);
   delay(3000);  // ⚠️ Aumentado para garantir inicialização
   
+    //inicializao de LCD  
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("   MONITOR PZEM  ");
+  lcd.setCursor(0, 1);
+  lcd.print(" Inicializando...");
+  delay(1500);
+  lcd.clear();
+
+
   Serial.println();
   Serial.println("=========================================");
   Serial.println("   SISTEMA DE AUTOMAÇÃO RESIDENCIAL");
   Serial.println("=========================================");
-  
+   
+   // FUNCAO DE INICIALIZACAO DE RELES
+
   configurarPinosReles();
+
   conectarWiFi();
   
-  // ⚠️ AGUARDAR MAIS TEMPO PARA PZEMs INICIALIZAREM
+  //  AGUARDAR MAIS TEMPO PARA PZEMs INICIALIZAREM
   Serial.println("Aguardando inicialização dos PZEMs...");
   delay(3000);
   
@@ -85,16 +101,22 @@ void setup() {
   
   Serial.println("Sistema totalmente inicializado e pronto!");
   Serial.println("=========================================");
+
+  // INICIALIZA O RELE DO LDR
   pinMode(R1, OUTPUT);
 
 }
 
-// ==================== LOOP PRINCIPAL CORRIGIDO ====================
+// ==================== LOOP PRINCIPAL====================
 void loop() {
   verificarConexaoWiFi();
   
-  // ⚠️ LER DADOS SEMPRE, MESMO SEM ENVIAR
+  // LER DADOS SEMPRE, MESMO SEM ENVIAR
   lerDadosPZEMsComLog();  // Função nova com logs detalhados
+ 
+  // MOSTRAR NO LCD APENAS DO PZEM1
+mostrarPZEMnoLCD(dadosPzem1);
+
             
             //Configuracoes de LDR
   valorLuz = analogRead(pinoLDR);  // Lê o valor do LDR (0 a 1023)
@@ -107,7 +129,10 @@ void loop() {
 
   // ====================== ENVIO DO LDR + R1 ======================
   if (WiFi.status() == WL_CONNECTED) {
-      WiFiClient client;
+      
+      WiFiClientSecure client;
+      client.setInsecure();  // ignora certificados SSL
+
       HTTPClient http;
 
       String url = String(serverURL) + "/api/ldr";
@@ -145,7 +170,7 @@ void loop() {
     informacoesSistemaCompleta();
   }
   
-  delay(500); // ⚠️ Aumentado para melhor estabilidade
+  delay(500); //  Aumentado para melhor estabilidade
 
  if(valorLuz<50){
 Serial.print("luminosidade: ");
@@ -161,6 +186,10 @@ digitalWrite(R1,1);
  }
 }
 
+
+                               // FUNCOES 
+
+                               
 // ==================== FUNÇÃO NOVA: TESTAR COMUNICAÇÃO PZEM ====================
 void testarComunicacaoPZEMs() {
   Serial.println("TESTANDO COMUNICAÇÃO COM PZEMs...");
@@ -184,6 +213,28 @@ void testarComunicacaoPZEMs() {
   }
   
   Serial.println("-----------------------------------------");
+}
+
+// ======================================================
+//   FUNÇÃO PARA MOSTRAR DADOS DO PZEM NO LCD
+// ======================================================
+void mostrarPZEMnoLCD(DadosPZEM pzem) {
+  lcd.clear();
+
+  lcd.setCursor(0, 0);
+  lcd.print("V:");
+  if (!isnan(pzem.voltage)) lcd.print(pzem.voltage);
+  else lcd.print("ERRO");
+
+  lcd.setCursor(9, 0);
+  lcd.print("A:");
+  if (!isnan(pzem.current)) lcd.print(pzem.current, 2);
+  else lcd.print("ERRO");
+
+  lcd.setCursor(0, 1);
+  lcd.print("W:");
+  if (!isnan(pzem.power)) lcd.print(pzem.power);
+  else lcd.print("ERRO");
 }
 
   
@@ -238,8 +289,11 @@ void atualizarNomesReles() {
     return;
   }
   
-  WiFiClient client;
-  HTTPClient http;
+ WiFiClientSecure client;
+client.setInsecure();
+
+HTTPClient http;
+
   
   String url = String(serverURL) + "/api/reles?api_key=" + apiKey;
   Serial.print("Buscando nomes em: ");
@@ -298,9 +352,11 @@ void enviarDadosServidor() {
     return;
   }
   
-  WiFiClient client;
-  HTTPClient http;
-  
+ WiFiClientSecure client;
+client.setInsecure();
+
+HTTPClient http;
+
   DynamicJsonDocument doc(2048);
   doc["api_key"] = apiKey;
   
@@ -361,7 +417,7 @@ void enviarDadosServidor() {
   ultimoEnvio = millis();
 }
 
-// ==================== FUNÇÕES AUXILIARES (MANTIDAS) ====================
+// ==================== FUNÇÕES AUXILIARES ====================
 void configurarPinosReles() {
   Serial.println("Configurando pinos dos relés...");
   for (int i = 0; i < NUM_RELES; i++) {
@@ -371,6 +427,7 @@ void configurarPinosReles() {
   }
 }
 
+
 void conectarWiFi() {
   Serial.print(" Conectando WiFi: ");
   Serial.println(ssid);
@@ -378,7 +435,7 @@ void conectarWiFi() {
   WiFi.begin(ssid, password);
   
   int tentativas = 0;
-  while (WiFi.status() != WL_CONNECTED && tentativas < 30) { // ⚠️ Aumentado para 30
+  while (WiFi.status() != WL_CONNECTED && tentativas < 30) { //  Aumentado para 30
     delay(500);
     Serial.print(".");
     tentativas++;
@@ -392,6 +449,8 @@ void conectarWiFi() {
     Serial.println("\n Falha na conexão WiFi!");
   }
 }
+
+
 
 void verificarConexaoWiFi() {
   if (WiFi.status() != WL_CONNECTED) {
@@ -408,9 +467,10 @@ bool deveMostrarInformacoes() { return (millis() - ultimaInfoSistema >= 300000);
 void verificarComandos() {
   if (WiFi.status() != WL_CONNECTED) return;
   
-  WiFiClient client;
-  HTTPClient http;
-  
+WiFiClientSecure client;
+client.setInsecure();
+HTTPClient http;
+
   String url = String(serverURL) + "/api/comandos?api_key=" + apiKey;
   http.begin(client, url);
   http.setTimeout(3000);
