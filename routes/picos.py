@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from flask import Blueprint, jsonify
 from app import db, dados_pzem       # db e dados_pzem vêm do app.py
-from models import EnergyData        # modelo do banco
+from app import EnergyData        # modelo do banco
 
 # Cria blueprint para picos
 picos_bp = Blueprint('picos', __name__)
