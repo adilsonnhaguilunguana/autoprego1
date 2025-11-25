@@ -252,51 +252,6 @@ function atualizarDadosPZEM(data) {
     elements.statusPzem2.className = `badge bg-${data.pzem2.conectado ? 'success' : 'danger'}`;
 }
 
-function resetarKPISelecionado() {
-    const select = document.getElementById("select-reset-kpi");
-    const id = select.value;
-
-    if (!id) {
-        showToast("Selecione um KPI para resetar!", "warning");
-        return;
-    }
-
-    if (id === "reset-all") {
-        resetarTodosKPIs();
-        showToast("Todos os KPIs foram zerados!", "success");
-        return;
-    }
-
-    const el = document.getElementById(id);
-
-    if (el) {
-        el.innerText = "0";
-        showToast(`KPI "${select.options[select.selectedIndex].text}" foi zerado!`, "success");
-    } else {
-        showToast("Erro: KPI não encontrado!", "danger");
-    }
-}
-
-function resetarTodosKPIs() {
-    const ids = [
-        "kpi-current-power",
-        "kpi-today-energy",
-        "kpi-today-cost",
-        "kpi-peak-today",
-        "kpi-peak-time",
-        "kpi-savings",
-        "kpi-peak-weekly",
-        "kpi-peak-weekly-time",
-        "kpi-peak-monthly",
-        "kpi-peak-monthly-time"
-    ];
-
-    ids.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.innerText = "0";
-    });
-}
-
 // Atualizar KPIs
 async function atualizarKPIs(data) {
     const elements = {
@@ -2482,3 +2437,64 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
+// =========================
+// 🔄 FUNÇÃO DE RESET DOS KPIs
+// =========================
+
+function resetarKPI() {
+    const kpi = document.getElementById("kpi-reset-select").value;
+    const msgBox = document.getElementById("msg-reset-kpi");
+
+    // Tabela de valores padrão para cada KPI
+    const defaults = {
+        currentPower: "0 W",
+        todayEnergy: "0 kWh",
+        todayCost: "MZN 0,00",
+        peakToday: "0 W",
+        peakWeekly: "0 W",
+        peakMonthly: "0 W",
+        savings: "0%",
+        peakTime: "--:--",
+        peakWeeklyTime: "--:--",
+        peakMonthlyTime: "--:--"
+    };
+
+    // Tabela de IDs dos elementos do HTML
+    const ids = {
+        currentPower: "kpi-current-power",
+        todayEnergy: "kpi-today-energy",
+        todayCost: "kpi-today-cost",
+        peakToday: "kpi-peak-today",
+        peakWeekly: "kpi-peak-weekly",
+        peakMonthly: "kpi-peak-monthly",
+        savings: "kpi-savings",
+        peakTime: "kpi-peak-time",
+        peakWeeklyTime: "kpi-peak-weekly-time",
+        peakMonthlyTime: "kpi-peak-monthly-time"
+    };
+
+    // Reset total
+    if (kpi === "all") {
+        for (const key in ids) {
+            const element = document.getElementById(ids[key]);
+            if (element) element.innerText = defaults[key];
+        }
+
+        msgBox.innerHTML = `<span class="text-success">Todos os KPIs foram resetados!</span>`;
+        return;
+    }
+
+    // Reset individual
+    const elementId = ids[kpi];
+    if (elementId) {
+        const el = document.getElementById(elementId);
+        if (el) el.innerText = defaults[kpi];
+
+        // Resetar hora correspondente
+        if (kpi === "peakToday") document.getElementById("kpi-peak-time").innerText = "--:--";
+        if (kpi === "peakWeekly") document.getElementById("kpi-peak-weekly-time").innerText = "--:--";
+        if (kpi === "peakMonthly") document.getElementById("kpi-peak-monthly-time").innerText = "--:--";
+    }
+
+    msgBox.innerHTML = `<span class="text-success">KPI resetado com sucesso!</span>`;
+}
