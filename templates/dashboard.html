@@ -1167,7 +1167,7 @@ html
 
                     <div id="msg-reset-kpi" class="mt-3"></div>
                 </div>
-                
+
                 <div class="config-panel">
                     <h5>Limites de Consumo</h5>
                     <form id="limit-config-form">
@@ -1395,6 +1395,7 @@ html
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard_reset.js') }}"></script>
 <script src="{{ url_for('static', filename='js/relatorios.js') }}"></script>
 <script src="{{ url_for('static', filename='js/notificacoes.js') }}"></script>
 {% endblock %}
