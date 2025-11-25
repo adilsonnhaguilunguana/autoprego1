@@ -250,11 +250,11 @@ class Configuracao(db.Model):
     alert_pzem_offline = db.Column(db.Boolean, default=True)
     alert_erro_sistema = db.Column(db.Boolean, default=True)
     saldo_baixo_limite = db.Column(db.Float, default=5.0)
-    
+
 # ==========================================================
 # ROTAS DE CONFIGURAÇÃO DE NOTIFICAÇÕES
 # ==========================================================
-
+#1
 @app.route('/config/notificacoes', methods=['GET'])
 @login_required
 def get_notificacoes_config():
@@ -1593,73 +1593,10 @@ def registrar_log_rele(rele_id, estado_anterior, estado_novo, motivo, modo_opera
     except Exception as e:
         print(f"❌ Erro ao registrar log do relé: {e}")
         db.session.rollback()
+
 # ==========================================================
                    # NOTIFICACOES
 # ==========================================================
-@app.route('/config/notificacoes', methods=['GET'])
-@login_required
-def get_notificacoes_config():
-    """Obter configurações de notificação"""
-    config = Configuracao.query.first()
-    if not config:
-        return jsonify({
-            # Telegram
-            "notify_telegram": False,
-            "telegram_bot_token": "",
-            "telegram_chat_id": "",
-            
-            # Email
-            "notify_email": True,
-            "smtp_server": "smtp.gmail.com",
-            "smtp_port": 587,
-            "email_sender": "",
-            "email_password": "",
-            "email_notificacao": "",
-            "email_frequency": "immediate",
-            
-            # Browser
-            "notify_browser": True,
-            
-            # 🔥 NOVO CAMPO: Limite de saldo baixo
-            "saldo_baixo_limite": 5.0,
-            
-            # Alertas
-            "alert_saldo_baixo": True,
-            "alert_consumo_pico": True,
-            "alert_reles_desligados": True,
-            "alert_pzem_offline": True,
-            "alert_erro_sistema": True
-        })
-    
-    return jsonify({
-        # Telegram
-        "notify_telegram": config.notify_telegram,
-        "telegram_bot_token": config.telegram_bot_token or "",
-        "telegram_chat_id": config.telegram_chat_id or "",
-        
-        # Email
-        "notify_email": config.notify_email,
-        "smtp_server": config.smtp_server or "smtp.gmail.com",
-        "smtp_port": config.smtp_port or 587,
-        "email_sender": config.email_sender or "",
-        "email_password": config.email_password or "",
-        "email_notificacao": config.email_notificacao or "",
-        "email_frequency": config.email_frequency or "immediate",
-        
-        # Browser
-        "notify_browser": config.notify_browser,
-        
-        # 🔥 NOVO CAMPO: Limite de saldo baixo
-        "saldo_baixo_limite": config.saldo_baixo_limite or 5.0,
-        
-        # Alertas
-        "alert_saldo_baixo": config.alert_saldo_baixo,
-        "alert_consumo_pico": config.alert_consumo_pico,
-        "alert_reles_desligados": config.alert_reles_desligados,
-        "alert_pzem_offline": config.alert_pzem_offline,
-        "alert_erro_sistema": config.alert_erro_sistema
-    })
-
 @app.route('/config/notificacoes', methods=['POST'])
 @login_required
 def save_notificacoes_config():
