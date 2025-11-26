@@ -39,6 +39,7 @@ migrate = Migrate(app, db)
 login_manager = LoginManager(app)
 login_manager.login_view = 'autenticacao'
 
+
 # =========================================================
 # 5️⃣ IMPORTS DOS PICOS (AGORA QUE O DB EXISTE)
 # =========================================================
