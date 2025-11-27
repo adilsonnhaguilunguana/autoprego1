@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: autoprego
-    env: python
-    plan: free
-    buildCommand: "pip install -r requirements.txt && flask db upgrade"
-    startCommand: "gunicorn app:app"
-    pythonVersion: "3.11.6"

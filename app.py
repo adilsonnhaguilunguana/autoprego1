@@ -19,13 +19,24 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # =========================================================
-# 2️⃣ AJUSTE AUTOMÁTICO DO DATABASE_URL PARA O RENDER
-#    (garante compatibilidade postgres:// → postgresql://)
+# 2️⃣ AJUSTE DO DATABASE_URL PARA O RENDER + psycopg3
 # =========================================================
-database_url = app.config.get("SQLALCHEMY_DATABASE_URI")
-if database_url and database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+# Render usa DATABASE_URL na configuração do serviço
+database_url = os.environ.get("DATABASE_URL")
+
+if not database_url:
+    print("❌ ERRO: DATABASE_URL não existe! Configure no Render.")
+    # Fallback para testes locais
+    database_url = "sqlite:///temp.db"
+
+# Corrige postgres:// → postgresql+psycopg:// (psycopg3)
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+
+# Melhor performance
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # =========================================================
 # 3️⃣ INICIALIZAÇÃO DO BANCO E MIGRATIONS
