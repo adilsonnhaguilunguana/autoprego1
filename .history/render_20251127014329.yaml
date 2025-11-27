@@ -1,0 +1,7 @@
+services: 
+"  - type: web" 
+"    name: autoprego" 
+"    env: python" 
+"    plan: free" 
+"    startCommand: \"gunicorn app:app\"" 
+"    pythonVersion: \"3.11.6\"" 
