@@ -475,6 +475,127 @@ def api_pico_mensal():
 # ==========================================================
 
 
+#==========================================================
+                        #Grafico
+#==========================================================
+@app.route("/api/grafico", methods=["GET"])
+@login_required
+def api_grafico():
+    """
+    Retorna dados históricos (tensão, corrente, potência, energia)
+    para criação de gráficos dinâmicos.
+    
+    ?period=month|week|day|custom
+    ?start=YYYY-MM-DD
+    ?end=YYYY-MM-DD
+    """
+    try:
+        period = request.args.get("period", "month")
+        start_raw = request.args.get("start")
+        end_raw = request.args.get("end")
+
+        today = datetime.utcnow().date()
+
+        # ============================
+        # 1) DEFINIR INTERVALO
+        # ============================
+        if period == "day":
+            dt_start = today
+            dt_end = today
+
+        elif period == "yesterday":
+            dt_start = today - timedelta(days=1)
+            dt_end = dt_start
+
+        elif period == "week":
+            dt_start = today - timedelta(days=today.weekday())   # segunda-feira
+            dt_end = today
+
+        elif period == "month":
+            dt_start = today.replace(day=1)
+            dt_end = today
+
+        elif period == "custom" and start_raw and end_raw:
+            dt_start = datetime.strptime(start_raw, "%Y-%m-%d").date()
+            dt_end = datetime.strptime(end_raw, "%Y-%m-%d").date()
+
+            # Limite de segurança
+            if (dt_end - dt_start).days > 366:
+                return jsonify({"success": False, "message": "Intervalo máximo: 1 ano"}), 400
+        else:
+            return jsonify({"success": False, "message": "Parâmetros inválidos"}), 400
+
+        # ============================
+        # 2) CONSULTA REAL AO BANCO
+        # ============================
+        dados = (
+            EnergyData.query
+            .filter(func.date(EnergyData.timestamp) >= dt_start,
+                    func.date(EnergyData.timestamp) <= dt_end)
+            .order_by(EnergyData.timestamp.asc())
+            .all()
+        )
+
+        # ============================
+        # 3) PREPARAR JSON PARA O JS
+        # ============================
+        timestamps = []
+        tensao = []
+        corrente = []
+        potencia = []
+        energia = []
+
+        for d in dados:
+            timestamps.append(d.timestamp.strftime("%Y-%m-%d %H:%M:%S"))
+            tensao.append(d.voltage)
+            corrente.append(d.current)
+            potencia.append(d.power)
+            energia.append(d.energy)
+
+        return jsonify({
+            "success": True,
+            "timestamps": timestamps,
+            "tensao": tensao,
+            "corrente": corrente,
+            "potencia": potencia,
+            "energia": energia,
+            "total_registros": len(potencia)
+        })
+
+    except Exception as e:
+        print("❌ ERRO /api/grafico:", e)
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/historico-consumo-mensal")
+def historico_consumo_mensal():
+    today = datetime.utcnow().date()
+    month_start = today.replace(day=1)
+
+    query = (
+        EnergyData.query
+        .filter(EnergyData.timestamp >= month_start)
+        .order_by(EnergyData.timestamp.asc())
+        .all()
+    )
+
+    registos = []
+    for r in query:
+        registos.append({
+            "hora": r.timestamp.strftime("%d/%m %H:%M"),
+            "tensao": r.voltage,
+            "corrente": r.current,
+            "potencia": r.power,
+            "energia": r.energy
+        })
+
+    return jsonify({
+        "sucesso": True,
+        "registos": registos
+    })
+
+#=========================================================
 # ROTAS DE CONFIGURAÇÃO DE NOTIFICAÇÕES
 # ==========================================================
 @app.route('/config/notificacoes', methods=['GET'])
