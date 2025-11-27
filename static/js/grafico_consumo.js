@@ -22,12 +22,14 @@ async function carregarHistorico() {
 }
 
 function atualizarGrafico(registos) {
-    const labels = registos.map(r => r.hora);
-    const potencias = registos.map(r => r.potencia);
-    const tensoes = registos.map(r => r.tensao);
-    const correntes = registos.map(r => r.corrente);
-    const energias = registos.map(r => r.energia);
+    // Usar somente valores reais da BD
+    const labels   = registos.map(r => r.hora);
+    const potencias = registos.map(r => Number(r.potencia));
+    const tensoes   = registos.map(r => Number(r.tensao));
+    const correntes = registos.map(r => Number(r.corrente));
+    const energias  = registos.map(r => Number(r.energia));
 
+    // Se existir gráfico anterior → destruir
     if (graficoConsumo) graficoConsumo.destroy();
 
     const ctx = document.getElementById("graficoConsumo").getContext("2d");
@@ -64,16 +66,13 @@ function atualizarGrafico(registos) {
                 }
             },
             scales: {
-                x: {
-                    display: true
-                },
-                y: {
-                    display: true
-                }
+                x: { display: true },
+                y: { display: true }
             }
         }
     });
 }
+
 
 // Atualiza automaticamente a cada 30s
 setInterval(carregarHistorico, 30000);
