@@ -34,26 +34,21 @@ app.config.from_object(Config)
 # 2️⃣ AJUSTE DO DATABASE_URL PARA O RENDER + psycopg3
 # =========================================================
 # Render usa DATABASE_URL na configuração do serviço
-# =========================================================
-# 2️⃣ AJUSTE DO DATABASE_URL PARA O RENDER + psycopg3
-# =========================================================
-
 database_url = os.environ.get("DATABASE_URL")
 
 if not database_url:
     print("❌ ERRO: DATABASE_URL não existe! Configure no Render.")
-    # fallback para testes locais
-    database_url = "sqlite:///local.db"
+    # Fallback para testes locais
+    database_url = "sqlite:///temp.db"
 
-# Render usa postgres://, mas psycopg3 exige postgresql+psycopg://
+# Corrige postgres:// → postgresql+psycopg:// (psycopg3)
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
 
-elif database_url.startswith("postgresql://"):
-    database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
-
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Melhor performance
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # =========================================================
 # 3️⃣ INICIALIZAÇÃO DO BANCO E MIGRATIONS

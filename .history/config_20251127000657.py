@@ -7,31 +7,29 @@ class Config:
     # =========================================================
     # 🔐 SEGURANÇA
     # =========================================================
+    # Chave usada pelo Flask (sessões, CSRF, etc.)
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'sua-chave-secreta-aqui-mude-isso-em-producao'
+
+    # JWT (se estiveres a usar tokens em alguma parte do sistema)
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-chave-secreta-aqui'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
 
     # =========================================================
     # 🟦 BANCO DE DADOS – POSTGRES (LOCAL + RENDER)
     # =========================================================
-    DATABASE_URL = os.environ.get("DATABASE_URL")
+    DATABASE_URL = os.environ.get('DATABASE_URL')
 
-    # Se Render ainda não configurou → usa SQLite local
-    if not DATABASE_URL:
-        print("⚠️ DATABASE_URL não encontrada – usando SQLite local para testes.")
-        DATABASE_URL = "sqlite:///local.db"
+    # Render usa "postgres://", mas o SQLAlchemy exige "postgresql://"
+    if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
-    # Render envia postgres:// → precisa converter para psycopg3
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+    # Se estiver em produção (Render) → usa DATABASE_URL
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL or \
+        'postgresql://postgres:adilson1250@localhost:5432/autoprego'
 
-    # Algumas instalações usam postgresql:// → também tem de converter
-    if DATABASE_URL.startswith("postgresql://") and "+psycopg" not in DATABASE_URL:
-        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
-
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # Opcional, mas MUITO recomendável para Render (pool de conexões)
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
         "pool_size": 10,
@@ -41,7 +39,7 @@ class Config:
     }
 
     # =========================================================
-    # 🔑 API KEY PERMITIDA NO ESP
+    # 🔑 CONFIGURAÇÃO DA API (APENAS 1 ESP8266)
     # =========================================================
     API_KEYS = {
         "SUA_CHAVE_API_SECRETA": "ESP8266"
