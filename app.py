@@ -10,6 +10,14 @@ from config import Config
 import traceback
 from sqlalchemy import func
 
+
+with open("app.py", "r") as f:
+    lines = f.readlines()
+    print("=== LINHAS 1000 A 1050 DO RAILWAY ===")
+    for i in range(1000, 1051):
+        print(i, lines[i].rstrip())
+    print("=== FIM ===")
+
 ULTIMO_LDR = {"valorLuz": 0, "R1": 0}
 # =========================================================
 # VARIÁVEIS GLOBAIS DO SISTEMA (antes de carregar rotas!)
