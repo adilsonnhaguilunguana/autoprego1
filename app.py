@@ -2850,93 +2850,37 @@ def atualizar_saldo_com_consumo():
         for pzem_id in [1, 2]:
             pzem_key = f'pzem{pzem_id}'
             
-            # Verifica se o PZEM está conectado e tem dados válidos
             if (dados_pzem[pzem_key]['conectado'] and 
                 dados_pzem[pzem_key].get('energy', 0) > 0):
                 
                 consumo_atual = dados_pzem[pzem_key]['energy']
                 consumo_anterior = ultimo_consumo_conhecido[pzem_key]
                 
-                # Calcula quanto foi consumido desde a última vez
                 if consumo_atual >= consumo_anterior:
                     diferenca_consumo = consumo_atual - consumo_anterior
                     consumo_desta_vez += diferenca_consumo
                 
-                # Atualiza o último consumo conhecido
                 ultimo_consumo_conhecido[pzem_key] = consumo_atual
         
-        # Subtrai o consumo desde a última vez do saldo atual
-        if consumo_desta_vez > 0.001:  # Só atualiza se consumo > 1 Wh
+        if consumo_desta_vez > 0.001:
             config.saldo_kwh -= consumo_desta_vez
             config.saldo_kwh = max(0, config.saldo_kwh)
-            
-            # Commit rápido apenas se houver mudança significativa
+
             db.session.commit()
-            
-            print(f"📉 Consumo: {consumo_desta_vez:.3f} kWh | Saldo: {saldo_anterior:.2f} → {config.saldo_kwh:.2f} kWh")
-            
-            # ✅✅✅ CORREÇÃO CRÍTICA: Chamar controle de relés após atualizar saldo
+
+            print(
+                f"📉 Consumo: {consumo_desta_vez:.3f} kWh "
+                f"| Saldo: {saldo_anterior:.2f} → {config.saldo_kwh:.2f} kWh"
+            )
+
             verificar_e_controlar_reles()
-            
         else:
-            # Rollback para liberar a transação se não houve consumo significativo
             db.session.rollback()
-            
+
     except Exception as e:
         print(f"❌ Erro ao atualizar saldo: {e}")
         db.session.rollback()
-    """
-    ATUALIZA O SALDO DE ENERGIA USANDO A DIFERENÇA DO CONSUMO ACUMULADO
-    Versão otimizada para evitar timeout
-    """
-    
-    try:
-        config = Configuracao.query.first()
-        if not config:
-            return
-        
-        consumo_desta_vez = 0.0
-        saldo_anterior = config.saldo_kwh
-        
-        # Para cada PZEM, calcula quanto consumiu desde a última vez
-        for pzem_id in [1, 2]:
-            pzem_key = f'pzem{pzem_id}'
-            
-            # Verifica se o PZEM está conectado e tem dados válidos
-            if (dados_pzem[pzem_key]['conectado'] and 
-                dados_pzem[pzem_key].get('energy', 0) > 0):
-                
-                consumo_atual = dados_pzem[pzem_key]['energy']
-                consumo_anterior = ultimo_consumo_conhecido[pzem_key]
-                
-                # Calcula quanto foi consumido desde a última vez
-                if consumo_atual >= consumo_anterior:
-                    diferenca_consumo = consumo_atual - consumo_anterior
-                    consumo_desta_vez += diferenca_consumo
-                    
-                    # DEBUG: Mostrar apenas se houve consumo significativo
-                    if diferenca_consumo > 0.001:  # Mais de 1 Wh
-                        print(f"📊 PZEM{pzem_id}: +{diferenca_consumo:.3f} kWh")
-                
-                # Atualiza o último consumo conhecido
-                ultimo_consumo_conhecido[pzem_key] = consumo_atual
-        
-        # Subtrai o consumo desde a última vez do saldo atual
-        if consumo_desta_vez > 0.001:  # Só atualiza se consumo > 1 Wh
-            config.saldo_kwh -= consumo_desta_vez
-            config.saldo_kwh = max(0, config.saldo_kwh)
-            
-            # Commit rápido apenas se houver mudança significativa
-            db.session.commit()
-            
-            print(f"📉 Consumo: {consumo_desta_vez:.3f} kWh | Saldo: {saldo_anterior:.2f} → {config.saldo_kwh:.2f} kWh")
-        else:
-            # Rollback para liberar a transação se não houve consumo significativo
-            db.session.rollback()
-            
-    except Exception as e:
-        print(f"❌ Erro ao atualizar saldo: {e}")
-        db.session.rollback()
+
 # ==========================================================
 # HELPERS
 # ==========================================================
