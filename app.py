@@ -2832,7 +2832,6 @@ def logout():
 # ==========================================================
 # FUNÇÃO DE DECREMENTO DE ENERGIA EM TEMPO REAL
 # ==========================================================
-
 def atualizar_saldo_com_consumo():
     """
     ATUALIZA O SALDO DE ENERGIA USANDO A DIFERENÇA DO CONSUMO ACUMULADO
@@ -2846,7 +2845,6 @@ def atualizar_saldo_com_consumo():
         consumo_desta_vez = 0.0
         saldo_anterior = config.saldo_kwh
         
-        # Para cada PZEM, calcula quanto consumiu desde a última vez
         for pzem_id in [1, 2]:
             pzem_key = f'pzem{pzem_id}'
             
@@ -2857,8 +2855,8 @@ def atualizar_saldo_com_consumo():
                 consumo_anterior = ultimo_consumo_conhecido[pzem_key]
                 
                 if consumo_atual >= consumo_anterior:
-                    diferenca_consumo = consumo_atual - consumo_anterior
-                    consumo_desta_vez += diferenca_consumo
+                    diferenca = consumo_atual - consumo_anterior
+                    consumo_desta_vez += diferenca
                 
                 ultimo_consumo_conhecido[pzem_key] = consumo_atual
         
