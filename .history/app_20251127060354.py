@@ -10,17 +10,27 @@ from config import Config
 import traceback
 from sqlalchemy import func
 
+
+with open("app.py", "r") as f:
+    lines = f.readlines()
+    print("=== LINHAS 1000 A 1050 DO RAILWAY ===")
+    for i in range(1000, 1051):
+        print(i, lines[i].rstrip())
+    print("=== FIM ===")
+
+ULTIMO_LDR = {"valorLuz": 0, "R1": 0}
 # =========================================================
-# VARIÁVEIS GLOBAIS
+# VARIÁVEIS GLOBAIS DO SISTEMA (antes de carregar rotas!)
 # =========================================================
 dados_pzem = {
-    "pzem1": {"voltage": 0, "current": 0, "power": 0, "energy": 0, "ultima_atualizacao": None},
-    "pzem2": {"voltage": 0, "current": 0, "power": 0, "energy": 0, "ultima_atualizacao": None}
+    "pzem1": {"voltage": 0, "current": 0, "power": 0, "energy": 0},
+    "pzem2": {"voltage": 0, "current": 0, "power": 0, "energy": 0}
 }
 
 ULTIMO_LDR = {"valorLuz": 0, "R1": 0}
 
 dados_lock = Lock()
+
 
 # =========================================================
 # 1️⃣ CRIAÇÃO DO APP E CARREGAMENTO DAS CONFIGURAÇÕES
@@ -29,26 +39,28 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # =========================================================
-# 2️⃣ AJUSTE SEGURO DO DATABASE_URL
+# 2️⃣ AJUSTE DO DATABASE_URL PARA O RENDER + psycopg3
 # =========================================================
-# O config.py já trata o DATABASE_URL.
-# MAS vamos fazer a conversão apenas se existir a variável no ambiente.
+# Render usa DATABASE_URL na configuração do serviço
+# =========================================================
+# 2️⃣ AJUSTE DO DATABASE_URL PARA O RENDER + psycopg3
+# =========================================================
 
-database_url = os.getenv("DATABASE_URL")
+database_url = os.environ.get("DATABASE_URL")
 
-if database_url:
-    # Corrigir formato do PostgreSQL no Railway/Render
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
+if not database_url:
+    print("❌ ERRO: DATABASE_URL não existe! Configure no Render.")
+    # fallback para testes locais
+    database_url = "sqlite:///local.db"
 
-    elif database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+# Render usa postgres://, mas psycopg3 exige postgresql+psycopg://
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-else:
-    print("⚠️ DATABASE_URL não encontrado — usando SQLite local.")
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///local.db"
+elif database_url.startswith("postgresql://"):
+    database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
 
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # =========================================================
@@ -61,7 +73,7 @@ migrate = Migrate(app, db)
 # 4️⃣ LOGIN MANAGER
 # =========================================================
 login_manager = LoginManager(app)
-login_manager.login_view = "autenticacao"
+login_manager.login_view = 'autenticacao'
 
 # =========================================================
 # 5️⃣ IMPORTS DOS PICOS (AGORA QUE O DB EXISTE)
@@ -791,7 +803,282 @@ def testar_email(config):
 # ==========================================================
 # SERVIÇO DE NOTIFICAÇÕES - INTEGRAÇÃO COMPLETA
 # ==========================================================
-#1
+
+class ServicoNotificacoes:
+    def __init__(self):
+        self.ultima_verificacao = None
+        self.alertas_enviados = set()
+        self.ultimo_email_diario = None
+
+    def verificar_todas_notificacoes(self):
+        """Verifica todos os eventos e envia notificações se necessário"""
+        try:
+            config = Configuracao.query.first()
+            if not config:
+                return
+
+            print("🔔 Verificando notificações...")
+
+            # 1. SALDO BAIXO - COM LIMITE PERSONALIZADO
+            if config.alert_saldo_baixo:
+                self.verificar_saldo_baixo(config)
+
+            # 2. CONSUMO EM PICO
+            if config.alert_consumo_pico:
+                self.verificar_consumo_pico(config)
+
+            # 3. RELÉS DESLIGADOS
+            if config.alert_reles_desligados:
+                self.verificar_reles_desligados(config)
+
+            # 4. PZEM OFFLINE
+            if config.alert_pzem_offline:
+                self.verificar_pzem_offline(config)
+
+            # 5. ERROS NO SISTEMA
+            if config.alert_erro_sistema:
+                self.verificar_erros_sistema(config)
+
+            # Limpar alertas antigos
+            self.limpar_alertas_antigos()
+
+        except Exception as e:
+            print(f"❌ Erro na verificação de notificações: {e}")
+
+    def verificar_saldo_baixo(self, config):
+        """Verifica se o saldo está baixo usando o limite personalizado"""
+        limite_saldo_baixo = config.saldo_baixo_limite or 5.0  # kWh
+        
+        if config.saldo_kwh <= limite_saldo_baixo:
+            alerta_id = f"saldo_baixo_{datetime.now().strftime('%Y%m%d%H')}"
+            
+            if alerta_id not in self.alertas_enviados:
+                mensagem = (
+                    f"⚠️ **SALDO BAIXO** ⚠️\n"
+                    f"Saldo atual: {config.saldo_kwh:.2f} kWh\n"
+                    f"Valor: {config.saldo_kwh * config.preco_kwh:.2f} MZN\n"
+                    f"Limite configurado: {limite_saldo_baixo} kWh\n"
+                    f"⏰ {datetime.now().strftime('%H:%M')}"
+                )
+                
+                self.enviar_notificacao('saldo_baixo', mensagem, config)
+                self.alertas_enviados.add(alerta_id)
+                print(f"🔔 Alerta de saldo baixo: {config.saldo_kwh:.2f} kWh ≤ {limite_saldo_baixo} kWh")
+
+    def verificar_consumo_pico(self, config):
+        """Verifica se o consumo está em pico (acima de 80% do limite)"""
+        # Obter dados dos PZEMs (ajuste conforme sua estrutura de dados)
+        consumo_total = 0
+        try:
+            # Exemplo - ajuste para seus dados reais
+            from app import dados_pzem  # ou importe de onde vem seus dados
+            consumo_total = dados_pzem.get('pzem1', {}).get('power', 0) + dados_pzem.get('pzem2', {}).get('power', 0)
+        except:
+            # Fallback caso não consiga obter os dados
+            consumo_total = 0
+        
+        limite_total = config.limite_pzem1 + config.limite_pzem2
+        limite_pico = limite_total * 0.8  # 80% do limite total
+        
+        if consumo_total >= limite_pico:
+            alerta_id = f"consumo_pico_{datetime.now().strftime('%Y%m%d%H')}"
+            
+            if alerta_id not in self.alertas_enviados:
+                percentual = (consumo_total / limite_total) * 100
+                mensagem = (
+                    f"⚡ **CONSUMO EM PICO** ⚡\n"
+                    f"Consumo atual: {consumo_total:.0f}W\n"
+                    f"Limite do sistema: {limite_total:.0f}W\n"
+                    f"Utilização: {percentual:.1f}%\n"
+                    f"⏰ {datetime.now().strftime('%H:%M')}"
+                )
+                
+                self.enviar_notificacao('consumo_pico', mensagem, config)
+                self.alertas_enviados.add(alerta_id)
+                print(f"🔔 Alerta de consumo em pico: {consumo_total:.0f}W")
+
+    def verificar_reles_desligados(self, config):
+        """Verifica se relés foram desligados automaticamente recentemente"""
+        try:
+            from app import comandos_pendentes, dados_lock
+            
+            with dados_lock:
+                comandos_desligar = [cmd for cmd in comandos_pendentes if cmd.endswith('_OFF')]
+            
+            if comandos_desligar:
+                for comando in comandos_desligar:
+                    alerta_id = f"rele_desligado_{comando}_{datetime.now().strftime('%Y%m%d%H')}"
+                    
+                    if alerta_id not in self.alertas_enviados:
+                        rele_id = comando.replace('RELE', '').replace('_OFF', '')
+                        mensagem = (
+                            f"🔌 **RELÉ DESLIGADO** 🔌\n"
+                            f"Relé {rele_id} foi desligado automaticamente\n"
+                            f"Motivo: Saldo baixo ou limite atingido\n"
+                            f"Saldo atual: {config.saldo_kwh:.2f} kWh\n"
+                            f"⏰ {datetime.now().strftime('%H:%M')}"
+                        )
+                        
+                        self.enviar_notificacao('reles_desligados', mensagem, config)
+                        self.alertas_enviados.add(alerta_id)
+                        print(f"🔔 Alerta de relé desligado: {comando}")
+        except Exception as e:
+            print(f"❌ Erro ao verificar relés desligados: {e}")
+
+    def verificar_pzem_offline(self, config):
+        """Verifica se algum PZEM está offline"""
+        try:
+            from app import dados_pzem
+            
+            agora = datetime.now(timezone.utc)
+            
+            for pzem_id in [1, 2]:
+                pzem_key = f'pzem{pzem_id}'
+                ultima_atualizacao = dados_pzem.get(pzem_key, {}).get('ultima_atualizacao')
+                
+                if ultima_atualizacao:
+                    tempo_desconectado = (agora - ultima_atualizacao).total_seconds()
+                    
+                    # Considera offline se não atualizou há mais de 2 minutos
+                    if tempo_desconectado > 120:  # 2 minutos
+                        alerta_id = f"pzem_offline_{pzem_id}_{datetime.now().strftime('%Y%m%d%H')}"
+                        
+                        if alerta_id not in self.alertas_enviados:
+                            mensagem = (
+                                f"❌ **PZEM OFFLINE** ❌\n"
+                                f"PZEM {pzem_id} desconectado\n"
+                                f"Tempo offline: {tempo_desconectado/60:.1f} minutos\n"
+                                f"Última atualização: {ultima_atualizacao.strftime('%H:%M')}\n"
+                                f"⏰ {datetime.now().strftime('%H:%M')}"
+                            )
+                            
+                            self.enviar_notificacao('pzem_offline', mensagem, config)
+                            self.alertas_enviados.add(alerta_id)
+                            print(f"🔔 Alerta de PZEM offline: {pzem_key}")
+        except Exception as e:
+            print(f"❌ Erro ao verificar PZEM offline: {e}")
+
+    def verificar_erros_sistema(self, config):
+        """Monitora erros no sistema"""
+        # Esta função pode ser expandida para monitorar logs específicos
+        # Por enquanto, é um placeholder para futuras implementações
+        pass
+
+    def enviar_notificacao(self, tipo, mensagem, config):
+        """Envia notificação por todos os canais configurados"""
+        try:
+            # Telegram
+            if config.notify_telegram and config.telegram_bot_token and config.telegram_chat_id:
+                self.enviar_telegram(mensagem, config)
+            
+            # Email (apenas para alertas críticos)
+            if config.notify_email and tipo in ['saldo_baixo', 'pzem_offline', 'erro_sistema']:
+                self.enviar_email(tipo, mensagem, config)
+            
+            # Browser (sempre que possível)
+            if config.notify_browser:
+                self.enviar_browser(tipo, mensagem)
+                
+        except Exception as e:
+            print(f"❌ Erro ao enviar notificação: {e}")
+
+    def enviar_telegram(self, mensagem, config):
+        """Envia mensagem via Telegram (compatível Railway)"""
+        try:
+            import requests
+
+            url = f"https://api.telegram.org/bot{config.telegram_bot_token}/sendMessage"
+
+            payload = {
+                'chat_id': str(config.telegram_chat_id).strip(),
+                'text': mensagem,
+                'parse_mode': 'HTML'
+            }
+
+            # ⚠️ Railway precisa JSON + cabeçalho
+            response = requests.post(
+                url,
+                json=payload,
+                timeout=10,
+                headers={"Content-Type": "application/json"}
+            )
+
+            if response.json().get('ok'):
+                print("✅ Notificação Telegram enviada")
+            else:
+                print(f"❌ Erro Telegram:", response.json())
+
+        except Exception as e:
+            print(f"❌ Erro ao enviar Telegram: {e}")
+
+    def enviar_email(self, tipo, mensagem, config):
+        """Envia email de notificação"""
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            # Preparar mensagem formatada para HTML
+            mensagem_html = mensagem.replace("\n", "<br>")
+            timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+            # Configurar mensagem
+            msg = MIMEMultipart()
+            msg['From'] = config.email_sender
+            msg['To'] = config.email_notificacao
+            msg['Subject'] = f"🔔 Alerta do Sistema - {tipo.upper()}"
+
+            # Corpo do email – AGORA SEM backslash dentro de { }
+            body = f"""
+            <h2>Alerta do Sistema de Energia</h2>
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
+                {mensagem_html}
+            </div>
+            <br>
+            <small>Sistema de Automação Residencial - {timestamp}</small>
+            """
+
+            msg.attach(MIMEText(body, 'html'))
+
+            # Enviar email
+            if config.smtp_port == 465:
+                server = smtplib.SMTP_SSL(config.smtp_server, config.smtp_port, timeout=15)
+            else:
+                server = smtplib.SMTP(config.smtp_server, config.smtp_port, timeout=15)
+                server.starttls()
+
+            server.login(config.email_sender, config.email_password)
+            server.sendmail(config.email_sender, config.email_notificacao, msg.as_string())
+            server.quit()
+
+            print("✅ Notificação Email enviada")
+
+        except Exception as e:
+            print(f"❌ Erro ao enviar Email: {e}")
+
+
+    def enviar_browser(self, tipo, mensagem):
+            """Envia notificação no navegador (será capturada pelo JavaScript)"""
+            # Esta notificação será processada pelo frontend
+            print(f"🔔 Notificação Browser: {tipo} - {mensagem}")
+
+    def limpar_alertas_antigos(self):
+            """Remove alertas antigos do conjunto para evitar duplicação"""
+            agora = datetime.now()
+            alertas_para_remover = []
+            
+            for alerta_id in self.alertas_enviados:
+                # Remove alertas com mais de 24 horas
+                if agora.strftime('%Y%m%d') not in alerta_id:
+                    alertas_para_remover.append(alerta_id)
+            
+            for alerta_id in alertas_para_remover:
+                self.alertas_enviados.remove(alerta_id)
+
+# ==========================================================
+# INICIALIZAÇÃO DO SERVIÇO
+# ==========================================================
+servico_notificacoes = ServicoNotificacoes()
 
 # ==========================================================
 # ROTAS ADICIONAIS PARA DEBUG
@@ -1549,7 +1836,7 @@ def registrar_log_rele(rele_id, estado_anterior, estado_novo, motivo, modo_opera
 # ==========================================================
 # SERVIÇO DE NOTIFICAÇÕES - INTEGRAÇÃO COMPLETA
 # ==========================================================
-#2
+
 class ServicoNotificacoes:
     def __init__(self):
         self.ultima_verificacao = None
@@ -1565,207 +1852,258 @@ class ServicoNotificacoes:
 
             print("🔔 Verificando notificações...")
 
+            # 1. ✅ SALDO BAIXO - COM LIMITE PERSONALIZADO
             if config.alert_saldo_baixo:
                 self.verificar_saldo_baixo(config)
 
+            # 2. ✅ CONSUMO EM PICO
             if config.alert_consumo_pico:
                 self.verificar_consumo_pico(config)
 
+            # 3. ✅ RELÉS DESLIGADOS
             if config.alert_reles_desligados:
                 self.verificar_reles_desligados(config)
 
+            # 4. ✅ PZEM OFFLINE
             if config.alert_pzem_offline:
                 self.verificar_pzem_offline(config)
 
+            # 5. ✅ ERROS NO SISTEMA
             if config.alert_erro_sistema:
                 self.verificar_erros_sistema(config)
 
+            # Limpar alertas antigos
             self.limpar_alertas_antigos()
 
         except Exception as e:
             print(f"❌ Erro na verificação de notificações: {e}")
 
     # ==========================================================
-    # 1. SALDO BAIXO
+    # 1. SALDO BAIXO - COM LIMITE PERSONALIZADO
     # ==========================================================
     def verificar_saldo_baixo(self, config):
-        limite_saldo_baixo = config.saldo_baixo_limite or 5.0
+        """Verifica se o saldo está baixo usando o limite personalizado"""
+        # 🔥 USA O LIMITE CONFIGURADO PELO USUÁRIO
+        limite_saldo_baixo = config.saldo_baixo_limite or 5.0  # kWh
         
         if config.saldo_kwh <= limite_saldo_baixo:
             alerta_id = f"saldo_baixo_{datetime.now().strftime('%Y%m%d%H')}"
-
+            
             if alerta_id not in self.alertas_enviados:
                 mensagem = (
-                    f"⚠️ SALDO BAIXO ⚠️\n"
+                    f"⚠️ **SALDO BAIXO** ⚠️\n"
                     f"Saldo atual: {config.saldo_kwh:.2f} kWh\n"
                     f"Valor: {config.saldo_kwh * config.preco_kwh:.2f} MZN\n"
                     f"Limite configurado: {limite_saldo_baixo} kWh\n"
                     f"⏰ {datetime.now().strftime('%H:%M')}"
                 )
-                self.enviar_notificacao("saldo_baixo", mensagem, config)
+                
+                self.enviar_notificacao('saldo_baixo', mensagem, config)
                 self.alertas_enviados.add(alerta_id)
+                print(f"🔔 Alerta de saldo baixo: {config.saldo_kwh:.2f} kWh ≤ {limite_saldo_baixo} kWh")
 
     # ==========================================================
     # 2. CONSUMO EM PICO
     # ==========================================================
     def verificar_consumo_pico(self, config):
+        """Verifica se o consumo está em pico (acima de 80% do limite)"""
         consumo_total = dados_pzem['pzem1']['power'] + dados_pzem['pzem2']['power']
         limite_total = config.limite_pzem1 + config.limite_pzem2
-        limite_pico = limite_total * 0.8  
-
+        limite_pico = limite_total * 0.8  # 80% do limite total
+        
         if consumo_total >= limite_pico:
             alerta_id = f"consumo_pico_{datetime.now().strftime('%Y%m%d%H')}"
-
+            
             if alerta_id not in self.alertas_enviados:
                 percentual = (consumo_total / limite_total) * 100
                 mensagem = (
-                    "⚡ CONSUMO EM PICO ⚡\n"
+                    f"⚡ **CONSUMO EM PICO** ⚡\n"
                     f"Consumo atual: {consumo_total:.0f}W\n"
-                    f"Limite total: {limite_total:.0f}W\n"
+                    f"Limite do sistema: {limite_total:.0f}W\n"
                     f"Utilização: {percentual:.1f}%\n"
                     f"⏰ {datetime.now().strftime('%H:%M')}"
                 )
-                self.enviar_notificacao("consumo_pico", mensagem, config)
+                
+                self.enviar_notificacao('consumo_pico', mensagem, config)
                 self.alertas_enviados.add(alerta_id)
+                print(f"🔔 Alerta de consumo em pico: {consumo_total:.0f}W")
 
     # ==========================================================
     # 3. RELÉS DESLIGADOS
     # ==========================================================
     def verificar_reles_desligados(self, config):
+        """Verifica se relés foram desligados automaticamente recentemente"""
+        # Verifica os comandos pendentes para ver se há relés sendo desligados
         with dados_lock:
-            comandos_desligar = [c for c in comandos_pendentes if c.endswith("_OFF")]
-
-        for comando in comandos_desligar:
-            alerta_id = f"rele_desligado_{comando}_{datetime.now().strftime('%Y%m%d%H')}"
-
-            if alerta_id not in self.alertas_enviados:
-                rele_id = comando.replace("RELE", "").replace("_OFF", "")
-                mensagem = (
-                    "🔌 RELÉ DESLIGADO 🔌\n"
-                    f"Relé {rele_id} desligado automaticamente\n"
-                    f"Motivo: Saldo baixo ou limite atingido\n"
-                    f"Saldo atual: {config.saldo_kwh:.2f} kWh\n"
-                    f"⏰ {datetime.now().strftime('%H:%M')}"
-                )
-                self.enviar_notificacao("reles_desligados", mensagem, config)
-                self.alertas_enviados.add(alerta_id)
+            comandos_desligar = [cmd for cmd in comandos_pendentes if cmd.endswith('_OFF')]
+        
+        if comandos_desligar:
+            for comando in comandos_desligar:
+                alerta_id = f"rele_desligado_{comando}_{datetime.now().strftime('%Y%m%d%H')}"
+                
+                if alerta_id not in self.alertas_enviados:
+                    rele_id = comando.replace('RELE', '').replace('_OFF', '')
+                    mensagem = (
+                        f"🔌 **RELÉ DESLIGADO** 🔌\n"
+                        f"Relé {rele_id} foi desligado automaticamente\n"
+                        f"Motivo: Saldo baixo ou limite atingido\n"
+                        f"Saldo atual: {config.saldo_kwh:.2f} kWh\n"
+                        f"⏰ {datetime.now().strftime('%H:%M')}"
+                    )
+                    
+                    self.enviar_notificacao('reles_desligados', mensagem, config)
+                    self.alertas_enviados.add(alerta_id)
+                    print(f"🔔 Alerta de relé desligado: {comando}")
 
     # ==========================================================
     # 4. PZEM OFFLINE
     # ==========================================================
     def verificar_pzem_offline(self, config):
+        """Verifica se algum PZEM está offline"""
         agora = datetime.now(timezone.utc)
-
+        
         for pzem_id in [1, 2]:
-            ultima = dados_pzem[f"pzem{pzem_id}"]["ultima_atualizacao"]
-
-            if ultima:
-                tempo = (agora - ultima).total_seconds()
-
-                if tempo > 120:  
+            pzem_key = f'pzem{pzem_id}'
+            ultima_atualizacao = dados_pzem[pzem_key]['ultima_atualizacao']
+            
+            if ultima_atualizacao:
+                tempo_desconectado = (agora - ultima_atualizacao).total_seconds()
+                
+                # Considera offline se não atualizou há mais de 2 minutos
+                if tempo_desconectado > 120:  # 2 minutos
                     alerta_id = f"pzem_offline_{pzem_id}_{datetime.now().strftime('%Y%m%d%H')}"
+                    
                     if alerta_id not in self.alertas_enviados:
                         mensagem = (
-                            "❌ PZEM OFFLINE ❌\n"
+                            f"❌ **PZEM OFFLINE** ❌\n"
                             f"PZEM {pzem_id} desconectado\n"
-                            f"Tempo offline: {tempo/60:.1f} min\n"
-                            f"Última atualização: {ultima.strftime('%H:%M')}\n"
+                            f"Tempo offline: {tempo_desconectado/60:.1f} minutos\n"
+                            f"Última atualização: {ultima_atualizacao.strftime('%H:%M')}\n"
                             f"⏰ {datetime.now().strftime('%H:%M')}"
                         )
-                        self.enviar_notificacao("pzem_offline", mensagem, config)
+                        
+                        self.enviar_notificacao('pzem_offline', mensagem, config)
                         self.alertas_enviados.add(alerta_id)
+                        print(f"🔔 Alerta de PZEM offline: {pzem_key}")
 
     # ==========================================================
-    # 5. ERROS DO SISTEMA
+    # 5. ERROS NO SISTEMA
     # ==========================================================
     def verificar_erros_sistema(self, config):
-        pass  
+        """Monitora erros no sistema"""
+        # Esta função pode ser expandida para monitorar logs específicos
+        # Por enquanto, é um placeholder para futuras implementações
+        pass
 
     # ==========================================================
-    # MÉTODOS DE ENVIO
+    # MÉTODOS DE ENVIO DE NOTIFICAÇÕES
     # ==========================================================
     def enviar_notificacao(self, tipo, mensagem, config):
+        """Envia notificação por todos os canais configurados"""
+        try:
+            # Telegram
+            if config.notify_telegram and config.telegram_bot_token and config.telegram_chat_id:
+                self.enviar_telegram(mensagem, config)
+            
+            # Email (apenas para alertas críticos)
+            if config.notify_email and tipo in ['saldo_baixo', 'pzem_offline', 'erro_sistema']:
+                self.enviar_email(tipo, mensagem, config)
+            
+            # Browser (sempre que possível)
+            if config.notify_browser:
+                self.enviar_browser(tipo, mensagem)
+                
+        except Exception as e:
+            print(f"❌ Erro ao enviar notificação: {e}")
 
-        if config.notify_telegram and config.telegram_bot_token and config.telegram_chat_id:
-            self.enviar_telegram(mensagem, config)
-
-        if config.notify_email and tipo in ["saldo_baixo", "pzem_offline", "erro_sistema"]:
-            self.enviar_email(tipo, mensagem, config)
-
-        if config.notify_browser:
-            self.enviar_browser(tipo, mensagem)
-
-    # ---- TELEGRAM (compatível Railway)
     def enviar_telegram(self, mensagem, config):
+        """Envia mensagem via Telegram"""
         try:
             import requests
-
+            
             url = f"https://api.telegram.org/bot{config.telegram_bot_token}/sendMessage"
             payload = {
-                "chat_id": str(config.telegram_chat_id),
-                "text": mensagem,
-                "parse_mode": "HTML"
+                'chat_id': config.telegram_chat_id,
+                'text': mensagem,
+                'parse_mode': 'Markdown'
             }
-
-            requests.post(url, json=payload, timeout=10)
-            print("✅ Telegram enviado")
-
+            
+            response = requests.post(url, data=payload, timeout=10)
+            if response.json().get('ok'):
+                print("✅ Notificação Telegram enviada")
+            else:
+                print(f"❌ Erro Telegram: {response.json().get('description')}")
+                
         except Exception as e:
-            print("❌ Erro Telegram:", e)
+            print(f"❌ Erro ao enviar Telegram: {e}")
 
-    # ---- EMAIL (sem backslashes em f-strings)
     def enviar_email(self, tipo, mensagem, config):
+        """Envia email de notificação"""
         try:
             import smtplib
             from email.mime.text import MIMEText
             from email.mime.multipart import MIMEMultipart
-
-            mensagem_html = mensagem.replace("\n", "<br>")
-            timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
-
+            
+            # Configurar mensagem
             msg = MIMEMultipart()
-            msg["From"] = config.email_sender
-            msg["To"] = config.email_notificacao
-            msg["Subject"] = f"🔔 Alerta do Sistema - {tipo.upper()}"
-
+            msg['From'] = config.email_sender
+            msg['To'] = config.email_notificacao
+            msg['Subject'] = f"🔔 Alerta do Sistema - {tipo.upper()}"
+            
+            # Corpo do email
             body = f"""
             <h2>Alerta do Sistema de Energia</h2>
-            <div style="background:#f8f9fa;padding:15px;border-radius:5px;">
-                {mensagem_html}
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
+                {mensagem.replace('\n', '<br>')}
             </div>
             <br>
-            <small>Sistema de Automação Residencial - {timestamp}</small>
+            <small>Sistema de Automação Residencial - {datetime.now().strftime('%d/%m/%Y %H:%M')}</small>
             """
-
-            msg.attach(MIMEText(body, "html"))
-
+            
+            msg.attach(MIMEText(body, 'html'))
+            
+            # Enviar email
             if config.smtp_port == 465:
                 server = smtplib.SMTP_SSL(config.smtp_server, config.smtp_port, timeout=15)
             else:
                 server = smtplib.SMTP(config.smtp_server, config.smtp_port, timeout=15)
                 server.starttls()
-
+            
             server.login(config.email_sender, config.email_password)
             server.sendmail(config.email_sender, config.email_notificacao, msg.as_string())
             server.quit()
-
-            print("✅ Email enviado")
-
+            
+            print("✅ Notificação Email enviada")
+            
         except Exception as e:
-            print("❌ Erro Email:", e)
+            print(f"❌ Erro ao enviar Email: {e}")
 
-    # ---- Browser
     def enviar_browser(self, tipo, mensagem):
-        print(f"🔔 Browser: {tipo} - {mensagem}")
+        """Envia notificação no navegador (será capturada pelo JavaScript)"""
+        # Esta notificação será processada pelo frontend
+        print(f"🔔 Notificação Browser: {tipo} - {mensagem}")
 
-    # ---- Limpeza
+    # ==========================================================
+    # LIMPEZA DE ALERTAS ANTIGOS
+    # ==========================================================
     def limpar_alertas_antigos(self):
-        hoje = datetime.now().strftime("%Y%m%d")
-        self.alertas_enviados = {a for a in self.alertas_enviados if hoje in a}
+        """Remove alertas antigos do conjunto para evitar duplicação"""
+        agora = datetime.now()
+        alertas_para_remover = []
+        
+        for alerta_id in self.alertas_enviados:
+            # Remove alertas com mais de 24 horas
+            if agora.strftime('%Y%m%d') not in alerta_id:
+                alertas_para_remover.append(alerta_id)
+        
+        for alerta_id in alertas_para_remover:
+            self.alertas_enviados.remove(alerta_id)
 
-
-# Instância global
+# ==========================================================
+# INICIALIZAÇÃO DO SERVIÇO
+# ==========================================================
 servico_notificacoes = ServicoNotificacoes()
+
 
 # ==========================================================
 # SISTEMA COMPLETO DE PICOS (DIÁRIO, SEMANAL, MENSAL)

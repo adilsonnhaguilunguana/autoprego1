@@ -10,17 +10,27 @@ from config import Config
 import traceback
 from sqlalchemy import func
 
+
+with open("app.py", "r") as f:
+    lines = f.readlines()
+    print("=== LINHAS 1000 A 1050 DO RAILWAY ===")
+    for i in range(1000, 1051):
+        print(i, lines[i].rstrip())
+    print("=== FIM ===")
+
+ULTIMO_LDR = {"valorLuz": 0, "R1": 0}
 # =========================================================
-# VARIÁVEIS GLOBAIS
+# VARIÁVEIS GLOBAIS DO SISTEMA (antes de carregar rotas!)
 # =========================================================
 dados_pzem = {
-    "pzem1": {"voltage": 0, "current": 0, "power": 0, "energy": 0, "ultima_atualizacao": None},
-    "pzem2": {"voltage": 0, "current": 0, "power": 0, "energy": 0, "ultima_atualizacao": None}
+    "pzem1": {"voltage": 0, "current": 0, "power": 0, "energy": 0},
+    "pzem2": {"voltage": 0, "current": 0, "power": 0, "energy": 0}
 }
 
 ULTIMO_LDR = {"valorLuz": 0, "R1": 0}
 
 dados_lock = Lock()
+
 
 # =========================================================
 # 1️⃣ CRIAÇÃO DO APP E CARREGAMENTO DAS CONFIGURAÇÕES
@@ -29,26 +39,28 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # =========================================================
-# 2️⃣ AJUSTE SEGURO DO DATABASE_URL
+# 2️⃣ AJUSTE DO DATABASE_URL PARA O RENDER + psycopg3
 # =========================================================
-# O config.py já trata o DATABASE_URL.
-# MAS vamos fazer a conversão apenas se existir a variável no ambiente.
+# Render usa DATABASE_URL na configuração do serviço
+# =========================================================
+# 2️⃣ AJUSTE DO DATABASE_URL PARA O RENDER + psycopg3
+# =========================================================
 
-database_url = os.getenv("DATABASE_URL")
+database_url = os.environ.get("DATABASE_URL")
 
-if database_url:
-    # Corrigir formato do PostgreSQL no Railway/Render
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
+if not database_url:
+    print("❌ ERRO: DATABASE_URL não existe! Configure no Render.")
+    # fallback para testes locais
+    database_url = "sqlite:///local.db"
 
-    elif database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+# Render usa postgres://, mas psycopg3 exige postgresql+psycopg://
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-else:
-    print("⚠️ DATABASE_URL não encontrado — usando SQLite local.")
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///local.db"
+elif database_url.startswith("postgresql://"):
+    database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
 
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # =========================================================
@@ -61,7 +73,7 @@ migrate = Migrate(app, db)
 # 4️⃣ LOGIN MANAGER
 # =========================================================
 login_manager = LoginManager(app)
-login_manager.login_view = "autenticacao"
+login_manager.login_view = 'autenticacao'
 
 # =========================================================
 # 5️⃣ IMPORTS DOS PICOS (AGORA QUE O DB EXISTE)
