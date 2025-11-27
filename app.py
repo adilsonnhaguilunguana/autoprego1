@@ -1011,47 +1011,51 @@ class ServicoNotificacoes:
         except Exception as e:
             print(f"❌ Erro ao enviar Telegram: {e}")
 
-
     def enviar_email(self, tipo, mensagem, config):
-            """Envia email de notificação"""
-            try:
-                import smtplib
-                from email.mime.text import MIMEText
-                from email.mime.multipart import MIMEMultipart
-                
-                # Configurar mensagem
-                msg = MIMEMultipart()
-                msg['From'] = config.email_sender
-                msg['To'] = config.email_notificacao
-                msg['Subject'] = f"🔔 Alerta do Sistema - {tipo.upper()}"
-                
-                # Corpo do email
-                body = f"""
-                <h2>Alerta do Sistema de Energia</h2>
-                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
-                    {mensagem.replace('\n', '<br>')}
-                </div>
-                <br>
-                <small>Sistema de Automação Residencial - {datetime.now().strftime('%d/%m/%Y %H:%M')}</small>
-                """
-                
-                msg.attach(MIMEText(body, 'html'))
-                
-                # Enviar email
-                if config.smtp_port == 465:
-                    server = smtplib.SMTP_SSL(config.smtp_server, config.smtp_port, timeout=15)
-                else:
-                    server = smtplib.SMTP(config.smtp_server, config.smtp_port, timeout=15)
-                    server.starttls()
-                
-                server.login(config.email_sender, config.email_password)
-                server.sendmail(config.email_sender, config.email_notificacao, msg.as_string())
-                server.quit()
-                
-                print("✅ Notificação Email enviada")
-                
-            except Exception as e:
-                print(f"❌ Erro ao enviar Email: {e}")
+        """Envia email de notificação"""
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            # Preparar mensagem formatada para HTML
+            mensagem_html = mensagem.replace("\n", "<br>")
+            timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+            # Configurar mensagem
+            msg = MIMEMultipart()
+            msg['From'] = config.email_sender
+            msg['To'] = config.email_notificacao
+            msg['Subject'] = f"🔔 Alerta do Sistema - {tipo.upper()}"
+
+            # Corpo do email – AGORA SEM backslash dentro de { }
+            body = f"""
+            <h2>Alerta do Sistema de Energia</h2>
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
+                {mensagem_html}
+            </div>
+            <br>
+            <small>Sistema de Automação Residencial - {timestamp}</small>
+            """
+
+            msg.attach(MIMEText(body, 'html'))
+
+            # Enviar email
+            if config.smtp_port == 465:
+                server = smtplib.SMTP_SSL(config.smtp_server, config.smtp_port, timeout=15)
+            else:
+                server = smtplib.SMTP(config.smtp_server, config.smtp_port, timeout=15)
+                server.starttls()
+
+            server.login(config.email_sender, config.email_password)
+            server.sendmail(config.email_sender, config.email_notificacao, msg.as_string())
+            server.quit()
+
+            print("✅ Notificação Email enviada")
+
+        except Exception as e:
+            print(f"❌ Erro ao enviar Email: {e}")
+
 
     def enviar_browser(self, tipo, mensagem):
             """Envia notificação no navegador (será capturada pelo JavaScript)"""
