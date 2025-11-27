@@ -336,10 +336,37 @@ html
         </div>
     </div>
 </div>
+
+<!-- ======================
+     GRÁFICO HISTÓRICO MENSAL
+     ====================== -->
+<div style="
+    width: 25%;
+    height: 90vh;
+    margin-top: 2rem;
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    border: 1px solid var(--border-color);
+">
+    <h5 class="text-primary mb-3">
+        <i class="bi bi-bar-chart-line"></i> Consumo Mensal (kWh)
+    </h5>
+
+    <canvas id="graficoConsumo"></canvas>
+</div>
+
+
 {% endblock %}
 
 {% block scripts %}
+<!-- ChartJS + script isolado -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/grafico_consumo.js') }}"></script>
+
 <script>
+
     // Gráficos do Dashboard - APENAS 1 PZEM
     let voltageChart, currentChart, powerChart, energyChart;
     const maxDataPoints = 15;
@@ -630,29 +657,7 @@ html
         fetchDashboardData();
     });
 
-<!-- ======================
-     GRÁFICO HISTÓRICO MENSAL
-     ====================== -->
-<div style="
-    width: 85%;
-    height: 20%;
-    margin-top: 2rem;
-    background: var(--bg-secondary);
-    border-radius: 16px;
-    padding: 1rem;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-    border: 1px solid var(--border-color);
-">
-    <h5 class="text-primary mb-3">
-        <i class="bi bi-bar-chart-line"></i> Consumo Mensal (kWh)
-    </h5>
 
-    <canvas id="graficoConsumo"></canvas>
-</div>
-
-<!-- ChartJS + script isolado -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="{{ url_for('static', filename='js/grafico_consumo.js') }}"></script>
 </script>
 
 {% endblock %}
