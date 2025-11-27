@@ -912,7 +912,7 @@ def testar_email(config):
 # ==========================================================
 # SERVIÇO DE NOTIFICAÇÕES - INTEGRAÇÃO COMPLETA
 # ==========================================================
-#1
+
 
 # ==========================================================
 # ROTAS ADICIONAIS PARA DEBUG
@@ -1828,7 +1828,9 @@ class ServicoNotificacoes:
                 "parse_mode": "HTML"
             }
 
-            requests.post(url, json=payload, timeout=10)
+            resp = requests.post(url, data=payload, timeout=10)
+            r = resp.json()            
+
             print("✅ Telegram enviado")
 
         except Exception as e:
