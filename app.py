@@ -2833,10 +2833,7 @@ def logout():
 # FUNÇÃO DE DECREMENTO DE ENERGIA EM TEMPO REAL
 # ==========================================================
 def atualizar_saldo_com_consumo():
-    """
-    ATUALIZA O SALDO DE ENERGIA USANDO A DIFERENÇA DO CONSUMO ACUMULADO
-    Versão otimizada para evitar timeout
-    """
+
     try:
         config = Configuracao.query.first()
         if not config:
@@ -3204,7 +3201,7 @@ def debug_dados():
         return jsonify({'error': str(e)}), 500
 # Função separada para processamento pesado (pode ser chamada em background)
 def processar_dados_em_background(data):
-    """Processa dados pesados como salvar no banco"""
+    
     try:
         with app.app_context():
             # Atualizar saldo
