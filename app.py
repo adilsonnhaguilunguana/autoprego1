@@ -3982,13 +3982,6 @@ def init_notificacoes():
 
 
 # -----------------------------
-# Inicialização automática em produção (Railway / Gunicorn)
-# -----------------------------
-with app.app_context():
-    init_db()
-    init_notificacoes()
-
-# -----------------------------
 # Execução local (python app.py)
 # -----------------------------
 if __name__ == '__main__':
