@@ -70,13 +70,6 @@ login_manager.login_view = 'autenticacao'
 # =========================================================
 # 5️⃣ IMPORTS DOS PICOS (AGORA QUE O DB EXISTE)
 # =========================================================
-from routes.picos import (
-    obter_pico_do_dia,
-    obter_picos_semana_atual,
-    obter_pico_semanal,
-    obter_pico_mensal
-)
-
 
 # ==========================================================
 # CRIAÇÃO AUTOMÁTICA DAS TABELAS NO RAILWAY (Flask 3.0+)
