@@ -16,19 +16,6 @@ html
     gap: 1.5rem;
     width: 100%;
 }
-/* 🛠 FIX para o status em tempo real */
-#gaugeChart {
-    min-height: 220px !important;
-}
-
-.chart-container {
-    min-height: 260px !important;
-}
-
-/* Garantir que o canvas nunca encolha */
-.chart-container canvas {
-    min-height: 220px !important;
-}
 
 .chart-card {
     background: var(--bg-secondary);
@@ -975,13 +962,7 @@ html
                         <h5>Distribuição por Relés</h5>
                         <canvas id="relesChart" height="250"></canvas>
                     </div>
-                    <div class="chart-container">
-                        <h5>Status em Tempo Real</h5>
-                        <div class="gauge-container">
-                            <canvas id="gaugeChart" height="200" width="200"></canvas>
-                            <div class="gauge-value" id="gaugeValue">0%</div>
-                        </div>
-                    </div>
+
                 </div>
             </div>
         </div>
