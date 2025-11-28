@@ -1524,63 +1524,6 @@ function exportData(format) {
     });
 }
 
-// Salvar configuração de limites
-function salvarConfigLimites() {
-    const elements = {
-        limitPzem1: getElement('global-limit-pzem1'),
-        limitPzem2: getElement('global-limit-pzem2')
-    };
-
-    if (Object.values(elements).some(el => !el)) return;
-
-    const limitePzem1 = parseInt(elements.limitPzem1.value);
-    const limitePzem2 = parseInt(elements.limitPzem2.value);
-
-    if (isNaN(limitePzem1) || limitePzem1 < 100 || limitePzem1 > 3000 ||
-        isNaN(limitePzem2) || limitePzem2 < 100 || limitePzem2 > 3000) {
-        showToast('Os limites devem ser números entre 100 e 3000 W', 'warning');
-        return;
-    }
-
-    fetch('/config/limites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            pzem1: limitePzem1,
-            pzem2: limitePzem2
-        })
-    })
-    .then(response => {
-        if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            showToast('Limites de consumo salvos com sucesso!', 'success');
-            atualizarDashboard(); // Atualizar dashboard para refletir novos limites
-        } else {
-            showToast(`Erro ao salvar limites: ${data.message}`, 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Erro ao salvar limites:', error);
-        showToast('Erro de comunicação com o servidor', 'danger');
-    });
-}
-function carregarConfigLimites() {
-    fetch('/config/limites')
-        .then(response => {
-            if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
-            return response.json();
-        })
-        .then(data => {
-            if (data.pzem1) getElement('global-limit-pzem1').value = data.pzem1;
-            if (data.pzem2) getElement('global-limit-pzem2').value = data.pzem2;
-        })
-        .catch(error => {
-            console.error('Erro ao carregar limites:', error);
-        });
-}
 
 // ==========================================================
 // CONFIGURAÇÕES - RECARGAS E TAXAS
@@ -2354,7 +2297,6 @@ document.addEventListener('DOMContentLoaded', function() {
     inicializarGraficos();
     atualizarDashboard();
     carregarReles();
-    carregarConfigLimites();
     carregarModosReles();
     atualizarInfoSaldoConfig();
     atualizarLDR();
@@ -2390,12 +2332,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if (elements.limitConfigForm) {
-        elements.limitConfigForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            salvarConfigLimites();
-        });
-    }
 
     // 🔹 Salvar taxas (lixo, rádio, IVA)
     if (elements.taxConfigForm) {

@@ -957,12 +957,6 @@ html
                         <h5>Picos de Consumo Diários (Últimos 7 dias)</h5>
                         <canvas id="peakChart" height="250"></canvas>
                     </div>
-                    <!-- NOVOS CARDS PARA PICOS SEMANAL E MENSAL -->
-                    <div class="chart-container">
-                        <h5>Distribuição por Relés</h5>
-                        <canvas id="relesChart" height="250"></canvas>
-                    </div>
-
                 </div>
             </div>
         </div>
@@ -1162,20 +1156,6 @@ html
                     <div id="msg-reset-kpi" class="mt-3"></div>
                 </div>
 
-                <div class="config-panel">
-                    <h5>Limites de Consumo</h5>
-                    <form id="limit-config-form">
-                        <div class="mb-3">
-                            <label class="form-label">Limite PZEM 001 (W)</label>
-                            <input type="number" class="form-control" id="global-limit-pzem1" value="1000" min="100" max="3000">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Limite PZEM 002 (W)</label>
-                            <input type="number" class="form-control" id="global-limit-pzem2" value="1000" min="100" max="3000">
-                        </div>
-                        <button type="submit" class="btn btn-primary">Salvar Limites</button>
-                    </form>
-                </div>
 
                 <div class="config-panel mt-3">
                     <h5>Preço da Energia e Taxas</h5>
