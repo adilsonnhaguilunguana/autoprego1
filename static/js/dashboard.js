@@ -5,7 +5,7 @@ const state = {
         energyChart: null,
         peakChart: null,
         relesChart: null,
-       
+        gaugeChart: null
     },
     reles: {
         currentPage: 1,
@@ -158,7 +158,28 @@ function inicializarGraficos() {
         });
     }
 
-
+    const gaugeCtx = getElement('gaugeChart')?.getContext('2d');
+    if (gaugeCtx) {
+        state.charts.gaugeChart = new Chart(gaugeCtx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [0, 100],
+                    backgroundColor: ['#4caf50', '#f0f0f0'],
+                    borderWidth: 0,
+                    circumference: 180,
+                    rotation: 270
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '80%',
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                animation: { duration: 1000, easing: 'easeOutQuart' }
+            }
+        });
+    }
 }
 
 
@@ -326,7 +347,25 @@ function atualizarGraficos(data) {
         state.charts.relesChart.update();
     }
 
+    if (state.charts.gaugeChart) {
+        const totalPower = data.pzem1.power + data.pzem2.power;
+        const maxPower = (data.pzem1.limite + data.pzem2.limite) || 3000;
+        const usagePercent = Math.min(100, (totalPower / maxPower) * 100);
 
+        let gaugeColor = '#4caf50';
+        if (usagePercent > 80) gaugeColor = '#f44336';
+        else if (usagePercent > 60) gaugeColor = '#ff9800';
+
+        state.charts.gaugeChart.data.datasets[0].data = [usagePercent, 100 - usagePercent];
+        state.charts.gaugeChart.data.datasets[0].backgroundColor = [gaugeColor, '#f0f0f0'];
+        state.charts.gaugeChart.update();
+
+        const gaugeValue = getElement('gaugeValue');
+        if (gaugeValue) {
+            gaugeValue.textContent = usagePercent.toFixed(0) + '%';
+            gaugeValue.style.color = gaugeColor;
+        }
+    }
 }
 
 // Função utilitária para obter elementos DOM com segurança
@@ -550,7 +589,25 @@ function atualizarGraficos(data) {
         state.charts.relesChart.update();
     }
 
+    if (state.charts.gaugeChart) {
+        const totalPower = data.pzem1.power + data.pzem2.power;
+        const maxPower = (data.pzem1.limite + data.pzem2.limite) || 3000;
+        const usagePercent = Math.min(100, (totalPower / maxPower) * 100);
 
+        let gaugeColor = '#4caf50';
+        if (usagePercent > 80) gaugeColor = '#f44336';
+        else if (usagePercent > 60) gaugeColor = '#ff9800';
+
+        state.charts.gaugeChart.data.datasets[0].data = [usagePercent, 100 - usagePercent];
+        state.charts.gaugeChart.data.datasets[0].backgroundColor = [gaugeColor, '#f0f0f0'];
+        state.charts.gaugeChart.update();
+
+        const gaugeValue = getElement('gaugeValue');
+        if (gaugeValue) {
+            gaugeValue.textContent = usagePercent.toFixed(0) + '%';
+            gaugeValue.style.color = gaugeColor;
+        }
+    }
 }
 
 
