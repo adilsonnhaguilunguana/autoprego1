@@ -16,6 +16,19 @@ html
     gap: 1.5rem;
     width: 100%;
 }
+/* 🛠 FIX para o status em tempo real */
+#gaugeChart {
+    min-height: 220px !important;
+}
+
+.chart-container {
+    min-height: 260px !important;
+}
+
+/* Garantir que o canvas nunca encolha */
+.chart-container canvas {
+    min-height: 220px !important;
+}
 
 .chart-card {
     background: var(--bg-secondary);
