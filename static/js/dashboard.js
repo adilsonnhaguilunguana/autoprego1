@@ -206,7 +206,7 @@ async function atualizarKPIs(data) {
         todayCost: getElement('kpi-today-cost'),
         peakToday: getElement('kpi-peak-today'),
         peakTime: getElement('kpi-peak-time'),
-        savings: getElement('kpi-savings'),
+       
         // ✅ NOVOS: Picos semanal e mensal
         peakWeekly: getElement('kpi-peak-weekly'),
         peakWeeklyTime: getElement('kpi-peak-weekly-time'),
@@ -252,15 +252,7 @@ async function atualizarKPIs(data) {
     if (elements.peakMonthlyTime) {
         elements.peakMonthlyTime.textContent = horaPicoMensal;
     }
-    
-    // ✅ CORREÇÃO: Substituir "Economia" por "Saldo de Energia"
-    elements.savings.textContent = energiaAtual.toFixed(0) + '%';
-    
-    // ✅ Atualizar também o tooltip ou texto explicativo se necessário
-    const savingsElement = getElement('kpi-savings');
-    if (savingsElement) {
-        savingsElement.title = "Saldo de Energia Disponível";
-    }
+  
 }
 
 // Atualizar gráficos
@@ -448,7 +440,6 @@ async function atualizarKPIs(data) {
         todayCost: getElement('kpi-today-cost'),
         peakToday: getElement('kpi-peak-today'),
         peakTime: getElement('kpi-peak-time'),
-        savings: getElement('kpi-savings'),
         // ✅ NOVOS: Picos semanal e mensal
         peakWeekly: getElement('kpi-peak-weekly'),
         peakWeeklyTime: getElement('kpi-peak-weekly-time'),
@@ -495,14 +486,6 @@ async function atualizarKPIs(data) {
         elements.peakMonthlyTime.textContent = horaPicoMensal;
     }
     
-    // ✅ CORREÇÃO: Substituir "Economia" por "Saldo de Energia"
-    elements.savings.textContent = energiaAtual.toFixed(0) + '%';
-    
-    // ✅ Atualizar também o tooltip ou texto explicativo se necessário
-    const savingsElement = getElement('kpi-savings');
-    if (savingsElement) {
-        savingsElement.title = "Saldo de Energia Disponível";
-    }
 }
 
 // Atualizar gráficos
@@ -2334,7 +2317,6 @@ function resetarKPI() {
         peakToday: "0 W",
         peakWeekly: "0 W",
         peakMonthly: "0 W",
-        savings: "0%",
         peakTime: "--:--",
         peakWeeklyTime: "--:--",
         peakMonthlyTime: "--:--"
@@ -2348,7 +2330,7 @@ function resetarKPI() {
         peakToday: "kpi-peak-today",
         peakWeekly: "kpi-peak-weekly",
         peakMonthly: "kpi-peak-monthly",
-        savings: "kpi-savings",
+    
         peakTime: "kpi-peak-time",
         peakWeeklyTime: "kpi-peak-weekly-time",
         peakMonthlyTime: "kpi-peak-monthly-time"

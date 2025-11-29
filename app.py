@@ -3092,7 +3092,7 @@ def dashboard_data():
             "peak_weekly": pico_semanal,  # ✅ Novo: Pico semanal
             "peak_monthly": pico_mensal,  # ✅ Novo: Pico mensal
             "energia_atual": energia_atual,  # ✅ Energia atual (saldo)
-            "savings": 15  # Mantido para compatibilidade
+            
         })
 
 @app.route('/api/status-pzem')
