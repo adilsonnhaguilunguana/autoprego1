@@ -125,61 +125,7 @@ function inicializarGraficos() {
         });
     }
 
-    const relesCtx = getElement('relesChart')?.getContext('2d');
-    if (relesCtx) {
-        state.charts.relesChart = new Chart(relesCtx, {
-            type: 'doughnut',
-            data: {
-                labels: [],
-                datasets: [{
-                    data: [],
-                    backgroundColor: [
-                        'rgba(54, 162, 235, 0.7)',
-                        'rgba(255, 99, 132, 0.7)',
-                        'rgba(255, 206, 86, 0.7)',
-                        'rgba(75, 192, 192, 0.7)',
-                        'rgba(153, 102, 255, 0.7)',
-                        'rgba(255, 159, 64, 0.7)'
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#ffffff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'right', labels: { font: { size: 14, weight: '600' } } },
-                    title: { display: true, text: 'Distribuição por Relés', font: { size: 16, weight: '700' } }
-                },
-                cutout: '60%',
-                animation: { animateScale: true, animateRotate: true }
-            }
-        });
-    }
 
-    const gaugeCtx = getElement('gaugeChart')?.getContext('2d');
-    if (gaugeCtx) {
-        state.charts.gaugeChart = new Chart(gaugeCtx, {
-            type: 'doughnut',
-            data: {
-                datasets: [{
-                    data: [0, 100],
-                    backgroundColor: ['#4caf50', '#f0f0f0'],
-                    borderWidth: 0,
-                    circumference: 180,
-                    rotation: 270
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '80%',
-                plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                animation: { duration: 1000, easing: 'easeOutQuart' }
-            }
-        });
-    }
 }
 
 
@@ -2309,7 +2255,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const elements = {
         reportPeriod: getElement('report-period'),
         reportForm: getElement('report-form'),
-        limitConfigForm: getElement('limit-config-form'),
         addReleForm: getElement('add-rele-form'),
         editReleForm: getElement('edit-rele-form'),
         taxConfigForm: getElement('price-tax-config-form'),
