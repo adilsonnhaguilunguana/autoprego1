@@ -1195,34 +1195,40 @@ def gerar_relatorio():
         except Exception as e:
             return jsonify({"success": False, "message": f"Erro ao gerar relatório de recargas: {str(e)}"}), 500
 
-    # ============================
+    # =============================
     # 3) Relatório de Consumo de Energia
-    # ============================
+    # =============================
     if tipo == "consumo":
         try:
             rows = db.session.query(
                 func.date(EnergyData.timestamp).label("data"),
-                func.sum(EnergyData.energy).label("energia_total")
+                func.max(EnergyData.energy).label("max_energy"),
+                func.min(EnergyData.energy).label("min_energy")
             ).filter(
                 func.date(EnergyData.timestamp) >= dt_start,
                 func.date(EnergyData.timestamp) <= dt_end
             )
-            
+
             if pzem != "all":
                 rows = rows.filter(EnergyData.pzem_id == int(pzem))
-                
+
             rows = rows.group_by(func.date(EnergyData.timestamp)).all()
 
-            for data, energia in rows:
-                custo = energia * cfg.preco_kwh
+            for data, max_energy, min_energy in rows:
+                if max_energy is None or min_energy is None:
+                    continue
+
+                consumo_real = float(max_energy) - float(min_energy)
+                custo = consumo_real * cfg.preco_kwh
+
                 dados.append({
                     "data": data.strftime("%Y-%m-%d"),
-                    "energia": round(float(energia), 3),
-                    "custo": round(float(custo), 2)
+                    "energia": round(consumo_real, 3),
+                    "custo": round(custo, 2)
                 })
-            
+
             return jsonify({
-                "success": True, 
+                "success": True,
                 "dados": dados,
                 "metadata": {
                     "periodo": f"{dt_start} a {dt_end}",
