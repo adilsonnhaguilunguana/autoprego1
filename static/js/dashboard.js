@@ -1965,105 +1965,102 @@ function renderReportTable(type, dados, metadata) {
 
 // Função específica para relatório de relés com os novos campos
 function renderRelatorioReles(dados, metadata) {
-    const container = document.getElementById('report-results');
-    
+    const container = document.getElementById("report-results");
+
+    if (!dados || dados.length === 0) {
+        container.innerHTML = `
+            <div class="estado-vazio">
+                <i class="bi bi-inbox"></i>
+                <h6>Nenhum relé encontrado</h6>
+                <p class="text-muted">Não há dados para este período.</p>
+            </div>
+        `;
+        return;
+    }
+
     let html = `
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6><i class="bi bi-cpu"></i> Desempenho por Relé</h6>
-            <span class="badge bg-primary">${metadata?.periodo || 'Período'}</span>
+        <div class="mb-3 d-flex justify-content-between">
+            <h5><i class="bi bi-cpu"></i> Relatório de Relés</h5>
+            <span class="badge bg-primary">${metadata?.periodo}</span>
         </div>
-        
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Relé</th>
-                        <th>PZEM</th>
-                        <th>Estado</th>
-                        <th>Modo</th>
-                        <th>Consumo Médio</th>
-                        <th>Tempo Ligado</th>
-                        <th>Tempo Desligado</th>
-                        <th>Ciclos</th>
-                        <th>Eficiência</th>
-                    </tr>
-                </thead>
-                <tbody>
     `;
 
-    dados.forEach(rele => {
-        // 🔥 CORREÇÃO: Garantir que todos os valores existam
-        const nome = rele.nome || "Sem nome";
-        const pzem_id = rele.pzem_id || 1;
-        const estado = rele.estado || "DESLIGADO";
-        const modo = rele.modo || "Manual";
-        const consumo_medio = typeof rele.consumo_medio === 'number' ? rele.consumo_medio : 0;
-        const tempo_ligado = rele.tempo_ligado || "0.0h";
-        const tempo_desligado = rele.tempo_desligado || "0.0h";
-        const ciclos = rele.ciclos || rele.mudancas_estado || 0;
-        
-        // 🔥 CORREÇÃO CRÍTICA: Tratar eficiencia_tempo que pode ser undefined
-        let eficiencia_tempo = "0%";
-        let eficiencia_valor = 0;
-        
-        if (rele.eficiencia_tempo) {
-            // Pode ser string "50%" ou número
-            if (typeof rele.eficiencia_tempo === 'string') {
-                eficiencia_valor = parseFloat(rele.eficiencia_tempo) || 0;
-                eficiencia_tempo = rele.eficiencia_tempo;
-            } else if (typeof rele.eficiencia_tempo === 'number') {
-                eficiencia_valor = rele.eficiencia_tempo;
-                eficiencia_tempo = eficiencia_valor.toFixed(1) + '%';
-            }
-        }
-
-        const estadoClass = estado === 'LIGADO' ? 'success' : 'secondary';
-        const modoClass = modo === 'Automático' ? 'info' : 'warning';
-        
+    dados.forEach((rele, idx) => {
         html += `
-            <tr>
-                <td><strong>${nome}</strong></td>
-                <td>PZEM ${pzem_id}</td>
-                <td><span class="badge bg-${estadoClass}">${estado}</span></td>
-                <td><span class="badge bg-${modoClass}">${modo}</span></td>
-                <td>${consumo_medio.toFixed(2)} W</td>
-                <td><span class="text-success"><i class="bi bi-clock"></i> ${tempo_ligado}</span></td>
-                <td><span class="text-secondary"><i class="bi bi-clock"></i> ${tempo_desligado}</span></td>
-                <td>${ciclos}</td>
-                <td>
-                    <div class="d-flex align-items-center">
-                        <div class="progress flex-grow-1" style="height: 15px;">
-                            <div class="progress-bar bg-success" role="progressbar" 
-                                 style="width: ${eficiencia_valor}%" 
-                                 aria-valuenow="${eficiencia_valor}" 
-                                 aria-valuemin="0" aria-valuemax="100">
-                            </div>
-                        </div>
-                        <small class="ms-2">${eficiencia_tempo}</small>
-                    </div>
-                </td>
-            </tr>
-        `;
-    });
-
-    html += `
-                </tbody>
-            </table>
-        </div>
-        
-        <div class="mt-3 p-3 bg-light rounded">
-            <div class="row">
-                <div class="col-md-6">
-                    <strong>Período analisado:</strong> ${metadata?.periodo || 'N/A'}<br>
-                    <strong>Total de relés:</strong> ${dados.length}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <strong>${rele.nome}</strong> 
+                    <span class="badge bg-info ms-2">PZEM ${rele.pzem_id}</span>
+                    <span class="badge bg-${rele.estado ? 'success' : 'secondary'} ms-2">
+                        ${rele.estado ? 'LIGADO' : 'DESLIGADO'}
+                    </span>
                 </div>
-                <div class="col-md-6">
-                    <strong>Dias analisados:</strong> ${metadata?.dias_analisados || 'N/A'}<br>
-                    <strong>Tipo de relatório:</strong> ${metadata?.tipo || 'desempenho_reles'}
+
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <strong>Total Ligado:</strong><br>
+                            <span class="text-success">${rele.total_ligado}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Total Desligado:</strong><br>
+                            <span class="text-danger">${rele.total_desligado}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>% Ligado:</strong><br>
+                            <span class="badge bg-success">${rele.percent_ligado}%</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>% Desligado:</strong><br>
+                            <span class="badge bg-danger">${rele.percent_desligado}%</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <strong>Ciclos:</strong> 
+                        <span class="badge bg-warning text-dark">${rele.ciclos}</span>
+                    </div>
+
+                    <hr>
+
+                    <h6><i class="bi bi-clock-history"></i> Eventos do Período</h6>
+
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm table-striped">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Hora</th>
+                                    <th>Estado</th>
+                                    <th>Duração</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+
+        // EVENTOS
+        rele.eventos.forEach(ev => {
+            html += `
+                <tr>
+                    <td>${ev.hora}</td>
+                    <td>
+                        <span class="badge bg-${ev.estado === "LIGADO" ? "success" : "secondary"}">
+                            ${ev.estado}
+                        </span>
+                    </td>
+                    <td>${ev.duracao}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+
                 </div>
             </div>
-        </div>
-    `;
+        `;
+    });
 
     container.innerHTML = html;
 }

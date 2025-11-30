@@ -1279,71 +1279,9 @@ def gerar_relatorio():
         except Exception as e:
             return jsonify({"success": False, "message": f"Erro ao gerar relatório de picos: {str(e)}"}), 500
 
-# ==========================================================
-# 5) Relatório de Desempenho por Relé - CORRIGIDA
-# ==========================================================
-    elif tipo == "reles":
-        try:
-            reles = Rele.query.all()
-            if not reles:
-                return jsonify({"success": False, "message": "Nenhum relé configurado"}), 404
-
-            dados = []
-            for rele in reles:
-                # Calcular consumo médio - CORREÇÃO: garantir que não seja None
-                consumo_medio_result = db.session.query(func.avg(EnergyData.power)).filter(
-                    EnergyData.pzem_id == rele.pzem_id,
-                    func.date(EnergyData.timestamp) >= dt_start,
-                    func.date(EnergyData.timestamp) <= dt_end
-                ).scalar()
-                
-                consumo_medio = float(consumo_medio_result) if consumo_medio_result is not None else 0.0
-
-                # Contar mudanças de estado no período
-                mudancas_count = ReleLog.query.filter(
-                    ReleLog.rele_id == rele.id,
-                    func.date(ReleLog.timestamp) >= dt_start,
-                    func.date(ReleLog.timestamp) <= dt_end
-                ).count()
-
-                # Calcular dias do período
-                dias_periodo = (dt_end - dt_start).days + 1
-                
-                # 🔥 CORREÇÃO: Garantir que todos os campos tenham valores padrão
-                dados.append({
-                    "nome": rele.nome or "Sem nome",
-                    "pzem_id": rele.pzem_id or 1,
-                    "consumo_medio": round(consumo_medio, 2),
-                    "estado": "LIGADO" if rele.estado else "DESLIGADO",
-                    "modo": "Automático" if rele.modo_automatico else "Manual",
-                    "prioridade": rele.prioridade or 3,
-                    "limite_individual": float(rele.limite_individual) if rele.limite_individual else 5.0,
-                    "tempo_ligado": "0.0h",  # Valor padrão
-                    "tempo_desligado": "0.0h",  # Valor padrão
-                    "ciclos": mudancas_count,
-                    "eficiencia_tempo": "0%",  # Valor padrão
-                    "mudancas_estado": mudancas_count,
-                    "periodo_analisado": f"{dias_periodo} dias"
-                })
-
-            return jsonify({
-                "success": True, 
-                "dados": dados,
-                "metadata": {
-                    "periodo": f"{dt_start} a {dt_end}",
-                    "total_reles": len(reles),
-                    "tipo": "desempenho_reles",
-                    "dias_analisados": dias_periodo
-                }
-            })
-        except Exception as e:
-            print(f"❌ Erro no relatório de relés: {e}")
-            import traceback
-            print(f"🔍 Traceback: {traceback.format_exc()}")
-            return jsonify({"success": False, "message": f"Erro ao gerar relatório de relés: {str(e)}"}), 500  
-# ============================================================
-# 6) Relatório de Análise de Custos
-# # ==========================================================
+#=============================================================
+# 5) Relatório de Análise de Custos
+#==========================================================
     elif tipo == "custo":
         try:
             cfg = Configuracao.query.first()
@@ -1629,6 +1567,123 @@ def gerar_relatorio():
         except Exception as e:
             print(f"❌ Erro na análise de custos: {e}")
             return jsonify({"success": False, "message": f"Erro ao gerar relatório de custos: {str(e)}"}), 500
+
+#=============================================================
+# 6) Relatório de desempenho por Rele
+#==========================================================
+
+    elif tipo == "reles":
+        try:
+            reles = Rele.query.all()
+            dados = []
+
+            for rele in reles:
+                # === 1) Buscar logs no período ===
+                logs = ReleLog.query.filter(
+                    ReleLog.rele_id == rele.id,
+                    func.date(ReleLog.timestamp) >= dt_start,
+                    func.date(ReleLog.timestamp) <= dt_end
+                ).order_by(ReleLog.timestamp.asc()).all()
+
+                eventos = []
+                tempo_ligado = timedelta(0)
+                tempo_desligado = timedelta(0)
+
+                # === 2) Se houver logs ===
+                if logs:
+                    for i in range(len(logs) - 1):
+                        atual = logs[i]
+                        proximo = logs[i + 1]
+
+                        intervalo = proximo.timestamp - atual.timestamp
+                        duracao_horas = intervalo.total_seconds() / 3600
+
+                        eventos.append({
+                            "hora": atual.timestamp.strftime("%H:%M"),
+                            "estado": "LIGADO" if atual.estado == 1 else "DESLIGADO",
+                            "duracao": f"{duracao_horas:.2f}h"
+                        })
+
+                        if atual.estado == 1:
+                            tempo_ligado += intervalo
+                        else:
+                            tempo_desligado += intervalo
+
+                    # Último evento até o final do período
+                    ultimo = logs[-1]
+                    final_periodo = datetime.combine(dt_end, datetime.max.time())
+
+                    intervalo_final = final_periodo - ultimo.timestamp
+                    duracao_final_horas = intervalo_final.total_seconds() / 3600
+
+                    eventos.append({
+                        "hora": ultimo.timestamp.strftime("%H:%M"),
+                        "estado": "LIGADO" if ultimo.estado == 1 else "DESLIGADO",
+                        "duracao": f"{duracao_final_horas:.2f}h"
+                    })
+
+                    if ultimo.estado == 1:
+                        tempo_ligado += intervalo_final
+                    else:
+                        tempo_desligado += intervalo_final
+
+                else:
+                    # === 3) Sem logs no período → considera estado atual ===
+                    intervalo_total = datetime.combine(dt_end, datetime.max.time()) - datetime.combine(dt_start, datetime.min.time())
+                    dur = intervalo_total.total_seconds() / 3600
+
+                    eventos.append({
+                        "hora": dt_start.strftime("%H:%M"),
+                        "estado": "LIGADO" if rele.estado == 1 else "DESLIGADO",
+                        "duracao": f"{dur:.2f}h"
+                    })
+
+                    if rele.estado == 1:
+                        tempo_ligado = intervalo_total
+                    else:
+                        tempo_desligado = intervalo_total
+
+                # === 4) Calcular porcentagens ===
+                tempo_total = tempo_ligado + tempo_desligado
+                tempo_total_horas = tempo_total.total_seconds() / 3600
+
+                if tempo_total_horas > 0:
+                    percent_ligado = (tempo_ligado.total_seconds() / 3600) / tempo_total_horas * 100
+                    percent_desligado = (tempo_desligado.total_seconds() / 3600) / tempo_total_horas * 100
+                else:
+                    percent_ligado = 0
+                    percent_desligado = 0
+
+                # === 5) Quantidade de ciclos ===
+                ciclos = len(logs)
+
+                # === 6) Adicionar ao resultado ===
+                dados.append({
+                    "nome": rele.nome,
+                    "pzem_id": rele.pzem_id,
+                    "estado": rele.estado,
+                    "total_ligado": f"{tempo_ligado.total_seconds() / 3600:.2f}h",
+                    "total_desligado": f"{tempo_desligado.total_seconds() / 3600:.2f}h",
+                    "percent_ligado": round(percent_ligado, 1),
+                    "percent_desligado": round(percent_desligado, 1),
+                    "ciclos": ciclos,
+                    "eventos": eventos
+                })
+
+            # === 7) Retorno final ===
+            return jsonify({
+                "success": True,
+                "dados": dados,
+                "metadata": {
+                    "periodo": f"{dt_start} a {dt_end}",
+                    "tipo": "reles"
+                }
+            })
+
+        except Exception as e:
+            print("❌ Erro no relatório de relés:", e)
+            return jsonify({"success": False, "message": str(e)}), 500
+
 
 @app.route('/api/reles/<int:rele_id>/logs', methods=['GET'])
 @login_required
