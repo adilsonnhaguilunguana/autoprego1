@@ -1,55 +1,65 @@
+// static/js/relatorios.js
 // ==========================================================
-// SISTEMA DE RELATÓRIOS COMPLETO (Adilson Versão Final)
+// SISTEMA DE EXPORTAÇÃO DE RELATÓRIOS - ABORDAGEM COMPLETA
 // ==========================================================
 
 // Variável global para armazenar dados do relatório atual
 window.currentReportData = null;
 
-// ==========================================================
-// 1) SISTEMA DE EXPORTAÇÃO
-// ==========================================================
-
+/**
+ * Exporta dados para CSV ou PDF
+ */
 function exportData(format) {
     console.log('📤 Iniciando exportação para:', format);
     
+    // Verificar se há dados disponíveis
     if (!window.currentReportData || !window.currentReportData.dados || window.currentReportData.dados.length === 0) {
         showToast('❌ Nenhum dado disponível para exportar. Gere um relatório primeiro.', 'warning');
         return;
     }
 
     try {
-        if (format === 'csv') exportToCSV(window.currentReportData);
-        else if (format === 'pdf') exportToPDF(window.currentReportData);
-        else showToast('❌ Formato não suportado.', 'error');
+        if (format === 'csv') {
+            exportToCSV(window.currentReportData);
+        } else if (format === 'pdf') {
+            exportToPDF(window.currentReportData);
+        } else {
+            showToast('❌ Formato de exportação não suportado.', 'error');
+        }
     } catch (error) {
         console.error('Erro na exportação:', error);
         showToast('❌ Erro ao exportar: ' + error.message, 'error');
     }
 }
 
-// -------------------- CSV --------------------- //
-
+/**
+ * Exporta para CSV
+ */
 function exportToCSV(data) {
     const dados = data.dados;
     const metadata = data.metadata || {};
     
+    // Criar conteúdo CSV
     let csvContent = "";
-
-    csvContent += "# RELATÓRIO EXPORTADO\n";
+    
+    // Metadados como comentários
+    csvContent += "# RELATÓRIO EXPORTADO - SISTEMA DE ENERGIA\n";
     csvContent += "# Tipo: " + (metadata.tipo || 'N/A') + "\n";
     csvContent += "# Período: " + (metadata.periodo || 'N/A') + "\n";
     csvContent += "# PZEM: " + (metadata.pzem || 'Todos') + "\n";
-    csvContent += "# Registros: " + (metadata.total_registros || dados.length) + "\n";
+    csvContent += "# Total de registros: " + (metadata.total_registros || dados.length) + "\n";
     csvContent += "# Gerado em: " + new Date().toLocaleString() + "\n\n";
     
     if (dados.length === 0) {
         showToast('⚠️ Nenhum dado para exportar.', 'warning');
         return;
     }
-
+    
+    // Cabeçalhos
     const headers = Object.keys(dados[0]);
     csvContent += headers.map(h => `"${h}"`).join(';') + '\n';
-
+    
+    // Dados
     dados.forEach(row => {
         const values = headers.map(header => {
             let value = row[header];
@@ -59,186 +69,220 @@ function exportToCSV(data) {
         });
         csvContent += values.join(';') + '\n';
     });
-
+    
+    // Download
     downloadFile(csvContent, `relatorio_${metadata.tipo || 'dados'}.csv`, 'text/csv');
-    showToast('✅ CSV exportado com sucesso!', 'success');
+    showToast('✅ Relatório exportado para CSV com sucesso!', 'success');
 }
 
-// -------------------- PDF --------------------- //
-
+/**
+ * Exporta para PDF (usando impressão do navegador)
+ */
 function exportToPDF(data) {
     const dados = data.dados;
     const metadata = data.metadata || {};
-
+    
     if (!dados || dados.length === 0) {
         showToast('⚠️ Nenhum dado para exportar.', 'warning');
         return;
     }
-
+    
+    // Criar conteúdo para impressão
     const printWindow = window.open('', '_blank');
     const timestamp = new Date().toLocaleString();
-
-    let html = `
-        <html><head><meta charset="utf-8">
-        <title>Relatório</title>
-        <style>
-            body { font-family: Arial; margin: 20px; }
-            h1 { color: #1a73e8; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th, td { border: 1px solid #ddd; padding: 8px; }
-            th { background: #1a73e8; color: #fff; }
-            tr:nth-child(even) { background: #f2f2f2; }
-        </style></head><body>
-
-        <h1>📊 Relatório do Sistema de Energia</h1>
-        <p><b>Tipo:</b> ${metadata.tipo}</p>
-        <p><b>Período:</b> ${metadata.periodo}</p>
-        <p><b>PZEM:</b> ${metadata.pzem}</p>
-        <p><b>Gerado em:</b> ${timestamp}</p>
-
-        <table><tr>
+    
+    let pdfContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Relatório - Sistema de Energia</title>
+            <meta charset="utf-8">
+            <style>
+                body { 
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                    margin: 20px; 
+                    color: #333;
+                }
+                .header { 
+                    border-bottom: 3px solid #1a73e8; 
+                    padding-bottom: 15px; 
+                    margin-bottom: 25px; 
+                }
+                .metadata { 
+                    background: #f8f9fa; 
+                    padding: 20px; 
+                    border-radius: 8px; 
+                    margin-bottom: 25px;
+                    border-left: 4px solid #1a73e8;
+                }
+                table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    margin-top: 15px;
+                    font-size: 12px;
+                }
+                th, td { 
+                    border: 1px solid #ddd; 
+                    padding: 10px; 
+                    text-align: left; 
+                }
+                th { 
+                    background-color: #1a73e8; 
+                    color: white; 
+                    font-weight: 600;
+                }
+                tr:nth-child(even) { 
+                    background-color: #f9f9f9; 
+                }
+                .footer { 
+                    margin-top: 30px; 
+                    font-size: 11px; 
+                    color: #666;
+                    border-top: 1px solid #ddd;
+                    padding-top: 15px;
+                }
+                h1 { color: #1a73e8; margin: 0; }
+                h3 { color: #333; margin-bottom: 15px; }
+                @media print {
+                    body { margin: 10px; }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>📊 Relatório do Sistema de Energia</h1>
+                <p><strong>Sistema de Automação Residencial</strong></p>
+            </div>
+            
+            <div class="metadata">
+                <h3>📋 Informações do Relatório</h3>
+                <p><strong>🔧 Tipo:</strong> ${metadata.tipo || 'N/A'}</p>
+                <p><strong>📅 Período:</strong> ${metadata.periodo || 'N/A'}</p>
+                <p><strong>⚡ PZEM:</strong> ${metadata.pzem || 'Todos'}</p>
+                <p><strong>📈 Total de Registros:</strong> ${metadata.total_registros || dados.length}</p>
+            </div>
     `;
-
-    const headers = Object.keys(dados[0]);
-    headers.forEach(h => html += `<th>${h.toUpperCase().replace(/_/g, " ")}</th>`);
-    html += "</tr>";
-
-    dados.forEach(row => {
-        html += "<tr>";
-        headers.forEach(h => {
-            let v = row[h];
-            if (typeof v === "object") v = JSON.stringify(v);
-            html += `<td>${v}</td>`;
+    
+    // Tabela de dados
+    if (dados.length > 0) {
+        pdfContent += `<h3>📊 Dados do Relatório</h3><table>`;
+        
+        // Cabeçalho
+        const headers = Object.keys(dados[0]);
+        pdfContent += '<tr>';
+        headers.forEach(header => {
+            pdfContent += `<th>${header.toUpperCase().replace(/_/g, ' ')}</th>`;
         });
-        html += "</tr>";
-    });
-
-    html += "</table></body></html>";
-
-    printWindow.document.write(html);
+        pdfContent += '</tr>';
+        
+        // Dados
+        dados.forEach(row => {
+            pdfContent += '<tr>';
+            headers.forEach(header => {
+                let value = row[header];
+                if (value === null || value === undefined) value = '';
+                if (typeof value === 'object') value = JSON.stringify(value);
+                pdfContent += `<td>${value}</td>`;
+            });
+            pdfContent += '</tr>';
+        });
+        
+        pdfContent += '</table>';
+    }
+    
+    pdfContent += `
+            <div class="footer">
+                <p><strong>🕒 Relatório gerado em:</strong> ${timestamp}</p>
+                <p><strong>© Sistema de Automação Residencial</strong> - Todos os direitos reservados</p>
+                <p class="no-print"><em>Use Ctrl+P para salvar como PDF</em></p>
+            </div>
+            
+            <script>
+                // Auto-print após carregar
+                window.onload = function() {
+                    setTimeout(() => {
+                        window.print();
+                    }, 500);
+                };
+            </script>
+        </body>
+        </html>
+    `;
+    
+    printWindow.document.write(pdfContent);
     printWindow.document.close();
-
-    setTimeout(() => printWindow.print(), 500);
-
-    showToast("📄 PDF pronto para impressão!", "success");
+    
+    showToast('✅ Relatório preparado para impressão/PDF!', 'success');
 }
 
-// -------------------- Download helper --------------------- //
-
+/**
+ * Função auxiliar para download de arquivos
+ */
 function downloadFile(content, filename, mimeType) {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
-
     const link = document.createElement('a');
+    
     link.href = url;
     link.download = filename;
-
+    link.style.display = 'none';
+    
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
+    
     URL.revokeObjectURL(url);
 }
 
-// ==========================================================
-// 2) SISTEMA DE NOTIFICAÇÕES
-// ==========================================================
-
+/**
+ * Mostra notificação toast
+ */
 function showToast(message, type = 'info') {
-    alert(message); // fallback simples
+    // Usar toast do Bootstrap se disponível, senão alert simples
+    if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+        const toastContainer = document.getElementById('toast-container');
+        const toastId = 'toast-' + Date.now();
+        
+        const bgColor = type === 'success' ? 'bg-success' : 
+                       type === 'error' ? 'bg-danger' : 
+                       type === 'warning' ? 'bg-warning' : 'bg-info';
+        
+        const toastHTML = `
+            <div id="${toastId}" class="toast align-items-center text-white ${bgColor} border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+        
+        toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+        const toastElement = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+        toast.show();
+        
+        toastElement.addEventListener('hidden.bs.toast', () => {
+            toastElement.remove();
+        });
+    } else {
+        // Fallback para alert simples
+        alert(message);
+    }
 }
 
-// ==========================================================
-// 3) FUNÇÕES DE RENDERIZAÇÃO
-// ==========================================================
-
-// ---------- Função genérica para tabela ---------- //
-
-function renderTabelaPadrao(dados) {
-    const container = document.getElementById("report-results");
-
-    if (!dados || dados.length === 0) {
-        container.innerHTML = "<p class='text-muted'>Nenhum dado encontrado.</p>";
-        return;
-    }
-
-    const headers = Object.keys(dados[0]);
-
-    let html = "<table class='table table-bordered table-striped'><thead><tr>";
-    headers.forEach(h => html += `<th>${h.toUpperCase().replace(/_/g, " ")}</th>`);
-    html += "</tr></thead><tbody>";
-
-    dados.forEach(row => {
-        html += "<tr>";
-        headers.forEach(h => {
-            let v = row[h];
-            if (typeof v === "object") v = JSON.stringify(v);
-            html += `<td>${v}</td>`;
-        });
-        html += "</tr>";
-    });
-
-    html += "</tbody></table>";
-    container.innerHTML = html;
+/**
+ * Armazena dados do relatório para exportação
+ * Chamar esta função quando gerar um relatório
+ */
+function setReportData(data) {
+    window.currentReportData = data;
+    console.log('💾 Dados do relatório armazenados para exportação:', data);
 }
 
-// ---------- Específicos ---------- //
-
-function renderRelatorioConsumo(dados) { renderTabelaPadrao(dados); }
-function renderRelatorioPicos(dados) { renderTabelaPadrao(dados); }
-function renderRelatorioRele(dados) { renderTabelaPadrao(dados); }
-function renderRelatorioCusto(dados) { renderTabelaPadrao(dados); }
-function renderRelatorioRecargas(dados) { renderTabelaPadrao(dados); }
-
-// ==========================================================
-// 4) HANDLER DO FORMULÁRIO
-// ==========================================================
-
-document.getElementById("report-form").addEventListener("submit", async function(e) {
-    e.preventDefault();
-
-    const tipo = document.getElementById("report-type").value;
-    const periodo = document.getElementById("report-period").value;
-    const pzem = document.getElementById("report-pzem").value;
-    const startDate = document.getElementById("start-date")?.value || null;
-    const endDate = document.getElementById("end-date")?.value || null;
-
-    const payload = { type: tipo, period: periodo, pzem, startDate, endDate };
-
-    try {
-        const resp = await fetch("/api/relatorio", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await resp.json();
-
-        if (!data.success) {
-            showToast("❌ Erro: " + data.message, "danger");
-            return;
-        }
-
-        setReportData(data);
-
-        switch (tipo) {
-            case "consumo": return renderRelatorioConsumo(data.dados);
-            case "picos": return renderRelatorioPicos(data.dados);
-            case "reles": return renderRelatorioRele(data.dados);
-            case "custo": return renderRelatorioCusto(data.dados);
-            case "recargas": return renderRelatorioRecargas(data.dados);
-        }
-
-    } catch (error) {
-        console.error(error);
-        showToast("❌ Erro ao gerar relatório!", "danger");
-    }
-});
-
-// ==========================================================
-// 5) DEBUG
-// ==========================================================
-
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("🌐 Sistema de relatórios carregado!");
+// Inicialização quando o DOM carregar
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('✅ Sistema de exportação de relatórios carregado!');
 });
