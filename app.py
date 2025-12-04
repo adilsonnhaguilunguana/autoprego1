@@ -567,87 +567,66 @@ def api_grafico():
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
-
 @app.route('/api/historico-consumo-mensal')
 @login_required
 def historico_consumo_mensal():
     """
-    Retorna histórico de consumo para o gráfico mensal:
-    - Dias anteriores ao dia de hoje → 1 ponto por dia (label: '1 Jan', '2 Jan', ...)
-    - Dia atual → todos os pontos ao longo das horas
+    Retorna TODOS os dados do mês atual para o gráfico mensal.
     """
     try:
-        hoje = datetime.utcnow().date()
-        # Últimos 30 dias incluindo hoje
-        inicio = hoje - timedelta(days=29)
-
-        # Busca todas as leituras nesse intervalo
+        # Obter início do mês atual
+        hoje = datetime.utcnow()
+        inicio_mes = hoje.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Buscar TODOS os registros do mês atual
+        # Sem agrupamento, sem compressão - todos os pontos originais
         registros = (
             EnergyData.query
-            .filter(func.date(EnergyData.timestamp) >= inicio,
-                    func.date(EnergyData.timestamp) <= hoje)
+            .filter(EnergyData.timestamp >= inicio_mes)
             .order_by(EnergyData.timestamp.asc())
             .all()
         )
-
+        
         if not registros:
-            return jsonify({"sucesso": True, "registos": []})
-
-        # Agrupar por dia
-        por_dia = {}
-        for r in registros:
-            dia = r.timestamp.date()
-            por_dia.setdefault(dia, []).append(r)
-
+            return jsonify({
+                "sucesso": True,
+                "registos": [],
+                "total": 0,
+                "mensagem": "Nenhum dado encontrado para o mês atual"
+            })
+        
+        # Converter para formato do gráfico
         resultado = []
-
-        for dia in sorted(por_dia.keys()):
-            leituras = por_dia[dia]
-
-            # 🔵 DIAS FECHADOS (antes de hoje) → 1 ponto por dia
-            if dia < hoje:
-                ultimo = leituras[-1]  # última leitura do dia
-
-                # rótulo: '1 Jan', '2 Fev', etc.
-                label = f"{dia.day} {dia.strftime('%b')}"  
-
-                resultado.append({
-                    "tipo": "dia",                # <- importante para o JS saber que é dia comprimido
-                    "data": dia.isoformat(),
-                    "label": label,               # X do gráfico
-                    "hora": ultimo.timestamp.strftime("%H:%M"),  # hora da última leitura
-                    "potencia": float(ultimo.power or 0),
-                    "tensao": float(ultimo.voltage or 0),
-                    "corrente": float(ultimo.current or 0),
-                    "energia": float(ultimo.energy or 0),
-                })
-
-            # 🟢 DIA ATUAL → manda TODAS as leituras (00:00 … 23:59)
-            else:
-                for r in leituras:
-                    resultado.append({
-                        "tipo": "hora",             # ponto detalhado
-                        "data": dia.isoformat(),
-                        "label": r.timestamp.strftime("%H:%M"),   # X do gráfico
-                        "hora": r.timestamp.strftime("%H:%M"),
-                        "potencia": float(r.power or 0),
-                        "tensao": float(r.voltage or 0),
-                        "corrente": float(r.current or 0),
-                        "energia": float(r.energy or 0),
-                    })
-
+        for registro in registros:
+            resultado.append({
+                "data_hora": registro.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "potencia": float(registro.power or 0),
+                "tensao": float(registro.voltage or 0),
+                "corrente": float(registro.current or 0),
+                "energia": float(registro.energy or 0),
+                "timestamp": registro.timestamp.isoformat()
+            })
+        
         return jsonify({
             "sucesso": True,
-            "registos": resultado
+            "registos": resultado,
+            "total": len(resultado),
+            "periodo": {
+                "inicio": inicio_mes.strftime("%Y-%m-%d"),
+                "fim": hoje.strftime("%Y-%m-%d"),
+                "dias": (hoje - inicio_mes).days + 1
+            }
         })
-
+        
     except Exception as e:
-        print("❌ Erro em /api/historico-consumo-mensal:", e)
+        print(f"❌ Erro em /api/historico-consumo-mensal: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "sucesso": False,
-            "mensagem": "Erro ao carregar histórico"
+            "mensagem": f"Erro interno: {str(e)}",
+            "registos": []
         }), 500
-
 #=========================================================
 # ROTAS DE CONFIGURAÇÃO DE NOTIFICAÇÕES
 # ==========================================================

@@ -349,12 +349,20 @@ html
     padding: 1rem;
     box-shadow: 0 8px 32px rgba(0,0,0,0.15);
     border: 1px solid var(--border-color);
+    position: relative;
 ">
-    <h5 class="text-primary mb-3">
-        <i class="bi bi-bar-chart-line"></i> Consumo Mensal (kWh)
-    </h5>
-
-    <canvas id="graficoConsumo"></canvas>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h5 class="text-primary mb-0">
+            <i class="bi bi-bar-chart-line"></i> Consumo Mensal (kW)
+        </h5>
+        <small id="ultimaAtualizacao" class="text-muted" style="font-size: 0.85rem;">
+            Última atualização: --
+        </small>
+    </div>
+    
+    <div style="height: calc(100% - 50px); position: relative;">
+        <canvas id="graficoConsumo"></canvas>
+    </div>
 </div>
 
 
