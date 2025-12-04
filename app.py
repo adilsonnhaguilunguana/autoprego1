@@ -571,28 +571,40 @@ def api_grafico():
 @login_required
 def historico_consumo_mensal():
     """
-    Retorna TODOS os dados do mês atual para o gráfico mensal.
+    Retorna histórico de consumo mensal APENAS do PZEM 1
     """
     try:
         # Obter início do mês atual
         hoje = datetime.utcnow()
         inicio_mes = hoje.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
-        # Buscar TODOS os registros do mês atual
-        # Sem agrupamento, sem compressão - todos os pontos originais
+        # Buscar APENAS dados do PZEM 1
+        # Supondo que EnergyData tenha um campo 'device_id' ou 'pzem_id'
         registros = (
             EnergyData.query
-            .filter(EnergyData.timestamp >= inicio_mes)
+            .filter(
+                EnergyData.timestamp >= inicio_mes,
+                EnergyData.device_id == 1  # APENAS PZEM 1
+            )
             .order_by(EnergyData.timestamp.asc())
             .all()
         )
+        
+        # Se não encontrar pelo device_id, buscar todos (assumindo que são todos do PZEM 1)
+        if not registros:
+            registros = (
+                EnergyData.query
+                .filter(EnergyData.timestamp >= inicio_mes)
+                .order_by(EnergyData.timestamp.asc())
+                .all()
+            )
         
         if not registros:
             return jsonify({
                 "sucesso": True,
                 "registos": [],
                 "total": 0,
-                "mensagem": "Nenhum dado encontrado para o mês atual"
+                "mensagem": "Nenhum dado encontrado para o PZEM 1"
             })
         
         # Converter para formato do gráfico
@@ -600,21 +612,22 @@ def historico_consumo_mensal():
         for registro in registros:
             resultado.append({
                 "data_hora": registro.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "timestamp": registro.timestamp.isoformat(),
                 "potencia": float(registro.power or 0),
                 "tensao": float(registro.voltage or 0),
                 "corrente": float(registro.current or 0),
                 "energia": float(registro.energy or 0),
-                "timestamp": registro.timestamp.isoformat()
+                "device_id": getattr(registro, 'device_id', 1)  # Adicionar device_id se existir
             })
         
         return jsonify({
             "sucesso": True,
             "registos": resultado,
             "total": len(resultado),
+            "device": "PZEM 1",
             "periodo": {
                 "inicio": inicio_mes.strftime("%Y-%m-%d"),
-                "fim": hoje.strftime("%Y-%m-%d"),
-                "dias": (hoje - inicio_mes).days + 1
+                "fim": hoje.strftime("%Y-%m-%d")
             }
         })
         
@@ -627,6 +640,7 @@ def historico_consumo_mensal():
             "mensagem": f"Erro interno: {str(e)}",
             "registos": []
         }), 500
+
 #=========================================================
 # ROTAS DE CONFIGURAÇÃO DE NOTIFICAÇÕES
 # ==========================================================
