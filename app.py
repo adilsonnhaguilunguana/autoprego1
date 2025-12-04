@@ -572,53 +572,85 @@ def api_grafico():
 def historico_consumo_mensal():
     """
     Retorna histórico de consumo mensal APENAS do PZEM 1
+    Garante que não caia para zero artificialmente
     """
     try:
         # Obter início do mês atual
         hoje = datetime.utcnow()
         inicio_mes = hoje.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
-        # Buscar APENAS dados do PZEM 1
-        # Supondo que EnergyData tenha um campo 'device_id' ou 'pzem_id'
-        registros = (
-            EnergyData.query
-            .filter(
-                EnergyData.timestamp >= inicio_mes,
-                EnergyData.device_id == 1  # APENAS PZEM 1
-            )
-            .order_by(EnergyData.timestamp.asc())
-            .all()
-        )
+        print(f"🔍 Buscando dados PZEM 1 de {inicio_mes} até {hoje}")
         
-        # Se não encontrar pelo device_id, buscar todos (assumindo que são todos do PZEM 1)
-        if not registros:
+        # PRIMEIRO: Tentar buscar pelo device_id = 1
+        registros = []
+        try:
+            # Verificar se a tabela tem coluna device_id
             registros = (
                 EnergyData.query
-                .filter(EnergyData.timestamp >= inicio_mes)
+                .filter(
+                    EnergyData.timestamp >= inicio_mes,
+                    EnergyData.device_id == 1
+                )
                 .order_by(EnergyData.timestamp.asc())
                 .all()
             )
+            print(f"✅ Encontrados {len(registros)} registros pelo device_id=1")
+        except Exception as e:
+            print(f"⚠️  Não foi possível filtrar por device_id: {e}")
+        
+        # SEGUNDO: Se não encontrou, buscar todos e filtrar depois
+        if not registros:
+            try:
+                todos_registros = (
+                    EnergyData.query
+                    .filter(EnergyData.timestamp >= inicio_mes)
+                    .order_by(EnergyData.timestamp.asc())
+                    .all()
+                )
+                print(f"📊 Total de registros no período: {len(todos_registros)}")
+                
+                # Filtrar registros que têm dados válidos (potência > 0)
+                registros = [r for r in todos_registros if r.power and float(r.power) > 0]
+                print(f"✅ Filtrados {len(registros)} registros com potência > 0")
+                
+            except Exception as e:
+                print(f"❌ Erro ao buscar todos os registros: {e}")
+                return jsonify({
+                    "sucesso": False,
+                    "mensagem": f"Erro no banco de dados: {str(e)}",
+                    "registos": []
+                }), 500
         
         if not registros:
             return jsonify({
                 "sucesso": True,
                 "registos": [],
                 "total": 0,
-                "mensagem": "Nenhum dado encontrado para o PZEM 1"
+                "mensagem": "Nenhum dado válido encontrado para o PZEM 1"
             })
         
         # Converter para formato do gráfico
         resultado = []
         for registro in registros:
+            # Garantir que os valores sejam números válidos
+            potencia = float(registro.power or 0)
+            
+            # Se potência for 0, usar último valor não-zero (se disponível)
+            if potencia == 0 and resultado:
+                potencia = float(resultado[-1]["potencia"] or 0)
+            
             resultado.append({
                 "data_hora": registro.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                 "timestamp": registro.timestamp.isoformat(),
-                "potencia": float(registro.power or 0),
-                "tensao": float(registro.voltage or 0),
+                "potencia": potencia,
+                "tensao": float(registro.voltage or 220),
                 "corrente": float(registro.current or 0),
                 "energia": float(registro.energy or 0),
-                "device_id": getattr(registro, 'device_id', 1)  # Adicionar device_id se existir
+                "device_id": getattr(registro, 'device_id', 1)
             })
+        
+        print(f"📈 Retornando {len(resultado)} pontos para o gráfico")
+        print(f"📊 Faixa de potência: {min([r['potencia'] for r in resultado])}W a {max([r['potencia'] for r in resultado])}W")
         
         return jsonify({
             "sucesso": True,
@@ -640,7 +672,6 @@ def historico_consumo_mensal():
             "mensagem": f"Erro interno: {str(e)}",
             "registos": []
         }), 500
-
 #=========================================================
 # ROTAS DE CONFIGURAÇÃO DE NOTIFICAÇÕES
 # ==========================================================
