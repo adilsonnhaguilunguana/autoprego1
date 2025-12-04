@@ -1,12 +1,12 @@
 // ===============================
-// GRÁFICO DE CONSUMO MENSAL CORRIGIDO
+// GRÁFICO DE CONSUMO MENSAL - APENAS PZEM 1
 // ===============================
 
 let graficoConsumo = null;
 let intervaloAtualizacao = null;
-let dadosOriginais = []; // Armazenar dados originais
+let dadosOriginais = [];
 
-// Função para buscar dados
+// Função para buscar dados APENAS do PZEM 1
 async function carregarDados() {
     try {
         const resposta = await fetch('/api/historico-consumo-mensal?_=' + Date.now());
@@ -18,10 +18,13 @@ async function carregarDados() {
         const dados = await resposta.json();
         
         if (dados.sucesso) {
+            // FILTRAR APENAS DADOS DO PZEM 1
+            const dadosPzem1 = filtrarApenasPzem1(dados.registos);
+            
             // Verificar se os dados são diferentes
-            if (JSON.stringify(dados.registos) !== JSON.stringify(dadosOriginais)) {
-                dadosOriginais = dados.registos;
-                atualizarGrafico(dados.registos);
+            if (JSON.stringify(dadosPzem1) !== JSON.stringify(dadosOriginais)) {
+                dadosOriginais = dadosPzem1;
+                atualizarGrafico(dadosPzem1);
             }
         } else {
             console.error('API retornou erro:', dados.mensagem);
@@ -31,6 +34,25 @@ async function carregarDados() {
     }
 }
 
+// Filtrar apenas dados do PZEM 1
+function filtrarApenasPzem1(registros) {
+    if (!registros || !Array.isArray(registros)) return [];
+    
+    return registros.filter(registro => {
+        // Verificar diferentes formas de identificar o PZEM 1
+        return (
+            registro.pzem_id === 1 ||
+            registro.pzem_id === '1' ||
+            registro.device_id === 1 ||
+            registro.device_id === '1' ||
+            registro.device === 'PZEM-1' ||
+            registro.device === 'pzem1' ||
+            // Se não tiver campo de identificação, assumir que são todos do PZEM 1
+            (!registro.pzem_id && !registro.device_id && !registro.device)
+        );
+    });
+}
+
 // Função para atualizar o gráfico
 function atualizarGrafico(registros) {
     const canvas = document.getElementById('graficoConsumo');
@@ -38,7 +60,7 @@ function atualizarGrafico(registros) {
     
     const container = canvas.parentElement.parentElement;
     
-    // Se não houver registros
+    // Se não houver registros do PZEM 1
     if (!registros || registros.length === 0) {
         if (graficoConsumo) {
             graficoConsumo.destroy();
@@ -50,9 +72,9 @@ function atualizarGrafico(registros) {
             canvas.style.display = 'none';
             container.innerHTML += `
                 <div class="sem-dados text-center text-muted py-5">
-                    <i class="bi bi-inbox display-4 d-block mb-3"></i>
-                    <h5 class="mb-2">Sem dados disponíveis</h5>
-                    <p class="mb-0">Aguardando dados do sistema...</p>
+                    <i class="bi bi-lightning-charge display-4 d-block mb-3"></i>
+                    <h5 class="mb-2">Sem dados do PZEM 1</h5>
+                    <p class="mb-0">Aguardando dados do sensor principal...</p>
                 </div>
             `;
         }
@@ -91,18 +113,18 @@ function atualizarGrafico(registros) {
         data: {
             labels: dadosProcessados.labels,
             datasets: [{
-                label: 'Potência (W)',
+                label: 'PZEM 1 - Potência (W)',
                 data: dadosProcessados.potencias,
                 borderColor: '#0d6efd',
                 backgroundColor: 'rgba(13, 110, 253, 0.1)',
                 borderWidth: 2,
-                tension: 0.3, // Linha suave
+                tension: 0.3,
                 fill: false,
-                pointRadius: 0, // Sem pontos na linha principal
+                pointRadius: 0,
                 pointHoverRadius: 6,
                 pointHoverBackgroundColor: '#0d6efd',
                 segment: {
-                    borderColor: ctx => 'rgba(13, 110, 253, 1)' // Linha contínua sem interrupções
+                    borderColor: ctx => '#0d6efd'
                 }
             },
             // Dataset adicional para marcadores de fim de dia
@@ -112,10 +134,10 @@ function atualizarGrafico(registros) {
                 borderColor: '#ff6b6b',
                 backgroundColor: '#ff6b6b',
                 borderWidth: 0,
-                pointRadius: 4, // Pontos visíveis apenas para fim de dia
+                pointRadius: 4,
                 pointHoverRadius: 8,
                 pointStyle: 'circle',
-                showLine: false // Não conectar os pontos com linha
+                showLine: false
             }]
         },
         options: {
@@ -126,7 +148,7 @@ function atualizarGrafico(registros) {
                     display: true,
                     labels: {
                         filter: function(item) {
-                            return item.text !== 'Fim do Dia'; // Esconder legenda dos marcadores
+                            return item.text !== 'Fim do Dia';
                         }
                     }
                 },
@@ -150,7 +172,6 @@ function atualizarGrafico(registros) {
                                         return `${mes} ${dia} - ${hora}:${minuto}`;
                                     }
                                 } catch (e) {
-                                    // Fallback para formato string
                                     return dataHora;
                                 }
                             }
@@ -195,7 +216,6 @@ function atualizarGrafico(registros) {
                     },
                     grid: {
                         color: function(context) {
-                            // Desenhar linha vertical para separar dias
                             const labelObj = dadosProcessados.labelsDias.find(l => l.index === context.index);
                             if (labelObj && labelObj.index === context.index) {
                                 return 'rgba(0, 0, 0, 0.1)';
@@ -213,7 +233,7 @@ function atualizarGrafico(registros) {
                 },
                 y: {
                     beginAtZero: true,
-                    grace: '10%', // Dar espaço no topo
+                    grace: '10%',
                     title: {
                         display: true,
                         text: 'Potência (W)'
@@ -227,13 +247,13 @@ function atualizarGrafico(registros) {
             },
             elements: {
                 line: {
-                    tension: 0.3 // Linha suave
+                    tension: 0.3
                 }
             }
         }
     });
     
-    // Adicionar plugin customizado para melhor separação de dias
+    // Adicionar plugin customizado para separação de dias
     Chart.register({
         id: 'separadorDiasCustom',
         afterDraw: function(chart) {
@@ -264,7 +284,7 @@ function atualizarGrafico(registros) {
     });
 }
 
-// Processar dados
+// Processar dados do PZEM 1
 function processarDados(registros) {
     const labels = [];
     const potencias = [];
@@ -276,7 +296,7 @@ function processarDados(registros) {
     let ultimoIndiceDia = -1;
     let primeiraLeituraDia = true;
     
-    // Inicializar array de marcadores com null
+    // Inicializar array de marcadores
     registros.forEach(() => {
         marcadoresData.push(null);
     });
@@ -285,7 +305,7 @@ function processarDados(registros) {
         // Extrair data/hora
         const dataHora = reg.data_hora || reg.timestamp || reg.hora || '';
         
-        // Extrair potência
+        // Extrair potência do PZEM 1
         const potencia = parseFloat(reg.potencia || reg.power || 0);
         potencias.push(potencia);
         
@@ -332,7 +352,7 @@ function processarDados(registros) {
         ultimoIndiceDia = index;
     });
     
-    // Adicionar último marcador se necessário
+    // Adicionar último marcador
     if (ultimoIndiceDia >= 0 && potencias[ultimoIndiceDia] > 0) {
         marcadoresFimDia.push(ultimoIndiceDia);
         marcadoresData[ultimoIndiceDia] = potencias[ultimoIndiceDia];
@@ -351,7 +371,6 @@ function processarDados(registros) {
 // Atualizar marcadores de fim de dia
 function atualizarMarcadoresFimDia(grafico, marcadores) {
     if (!grafico.data.datasets[1]) {
-        // Adicionar dataset de marcadores se não existir
         const marcadoresData = new Array(grafico.data.labels.length).fill(null);
         marcadores.forEach(idx => {
             if (grafico.data.datasets[0].data[idx] !== undefined) {
@@ -371,7 +390,6 @@ function atualizarMarcadoresFimDia(grafico, marcadores) {
             showLine: false
         });
     } else {
-        // Atualizar dataset existente
         const marcadoresData = new Array(grafico.data.labels.length).fill(null);
         marcadores.forEach(idx => {
             if (grafico.data.datasets[0].data[idx] !== undefined) {
@@ -402,9 +420,6 @@ if (document.readyState === 'loading') {
     iniciarGrafico();
 }
 
-// Para debug no console
-window.debugGrafico = {
-    atualizar: carregarDados,
-    getDados: () => dadosOriginais,
-    getGrafico: () => graficoConsumo
-};
+// Função de debug para verificar os dados
+console.log('=== GRAFICO PZEM 1 INICIALIZADO ===');
+console.log('Mostrando apenas dados do PZEM 1');
