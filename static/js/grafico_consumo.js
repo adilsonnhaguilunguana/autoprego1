@@ -1,10 +1,9 @@
 // ===============================
-// GRÁFICO DE CONSUMO MENSAL - PZEM 1 CORRIGIDO
+// GRÁFICO DE CONSUMO MENSAL - APENAS MARCADORES NO FIM DO DIA
 // ===============================
 
 let graficoConsumo = null;
 let intervaloAtualizacao = null;
-let dadosCache = [];
 let ultimaAtualizacaoDOM = null;
 
 // Plugin para separadores de dias
@@ -18,9 +17,9 @@ Chart.register({
         const yAxis = chart.scales.y;
         
         ctx.save();
-        ctx.strokeStyle = 'rgba(100, 100, 100, 0.25)';
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
         ctx.setLineDash([5, 3]);
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
         
         chart.$separadoresDias.forEach(posX => {
             if (posX > xAxis.left && posX < xAxis.right) {
@@ -35,7 +34,46 @@ Chart.register({
     }
 });
 
-// Buscar dados da API
+// Plugin para marcadores de fim de dia
+Chart.register({
+    id: 'marcadoresFimDia',
+    afterDatasetsDraw: function(chart) {
+        if (!chart.$marcadoresFimDia || chart.$marcadoresFimDia.length === 0) return;
+        
+        const ctx = chart.ctx;
+        
+        ctx.save();
+        
+        chart.$marcadoresFimDia.forEach(marcador => {
+            if (!marcador.x || !marcador.y) return;
+            
+            // Desenhar ponto grande (6px) com borda branca
+            ctx.fillStyle = '#ff6b6b';
+            ctx.beginPath();
+            ctx.arc(marcador.x, marcador.y, 6, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(marcador.x, marcador.y, 6, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Adicionar linha vertical pequena
+            ctx.strokeStyle = '#ff6b6b';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(marcador.x, marcador.y - 10);
+            ctx.lineTo(marcador.x, marcador.y + 10);
+            ctx.stroke();
+        });
+        
+        ctx.restore();
+    }
+});
+
+// Buscar dados
 async function buscarDadosPzem1() {
     try {
         const resposta = await fetch('/api/historico-consumo-mensal?_=' + Date.now());
@@ -44,108 +82,111 @@ async function buscarDadosPzem1() {
             throw new Error(`Erro HTTP: ${resposta.status}`);
         }
         
-        const dados = await resposta.json();
-        console.log('📊 Dados recebidos:', {
-            sucesso: dados.sucesso,
-            total: dados.registos?.length,
-            periodo: dados.periodo
-        });
-        
-        return dados;
+        return await resposta.json();
     } catch (erro) {
-        console.error('❌ Erro ao buscar dados:', erro);
+        console.error('Erro ao buscar dados:', erro);
         return null;
     }
 }
 
-// Processar dados para evitar quedas para zero
+// Processar dados - APENAS MARCADORES NO FIM DO DIA
 function processarDados(registros) {
     if (!registros || !Array.isArray(registros)) return null;
     
     const resultado = {
-        labels: [],        // Labels do eixo X
-        data: [],          // Dados de potência
-        timestamps: [],    // Timestamps para tooltip
-        tensoes: [],       // Dados de tensão
-        correntes: [],     // Dados de corrente
-        energias: [],      // Dados de energia
-        diasLabels: [],    // Labels dos dias (2 dez, 3 dez...)
-        separadores: []    // Posições dos separadores
+        labels: [],           // Labels do eixo X (apenas números)
+        data: [],             // Dados de potência
+        timestamps: [],       // Para tooltips
+        tensoes: [],
+        correntes: [],
+        energias: [],
+        diasLabels: [],       // Labels dos dias (2 dez, 3 dez...)
+        separadores: [],      // Posições dos separadores ENTRE dias
+        marcadores: []        // Marcadores de FIM DE DIA (apenas estes serão visíveis)
     };
     
     let diaAnterior = '';
+    let ultimoPontoDoDia = null;
     let primeiroPontoDoDia = true;
-    let ultimaPotenciaValida = 0;
+    let indicePonto = 0;
     
-    // Primeiro passada: processar dados reais
-    registros.forEach((reg, indice) => {
+    // Agrupar registros por dia
+    const registrosPorDia = {};
+    
+    registros.forEach(reg => {
         const timestamp = reg.data_hora || reg.timestamp || '';
-        let potencia = parseFloat(reg.potencia || reg.power || 0);
-        const tensao = parseFloat(reg.tensao || reg.voltage || 220);
-        const corrente = parseFloat(reg.corrente || reg.current || 0);
-        const energia = parseFloat(reg.energia || reg.energy || 0);
-        
-        // EVITAR QUEDA PARA ZERO: Se potência for 0 mas anterior não, manter último valor
-        if (potencia === 0 && ultimaPotenciaValida > 0 && indice > 0) {
-            potencia = ultimaPotenciaValida;
-        }
-        
-        // Atualizar último valor válido
-        if (potencia > 0) {
-            ultimaPotenciaValida = potencia;
-        }
-        
-        // Extrair dia (YYYY-MM-DD)
         let diaAtual = '';
+        
         if (timestamp) {
             const match = timestamp.toString().match(/(\d{4})-(\d{2})-(\d{2})/);
             if (match) {
                 diaAtual = match[0];
-            }
-        }
-        
-        // Detectar mudança de dia
-        if (diaAnterior !== '' && diaAtual !== '' && diaAtual !== diaAnterior) {
-            // Adicionar separador entre dias
-            resultado.separadores.push(indice - 0.5);
-            primeiroPontoDoDia = true;
-        }
-        
-        // Adicionar label no primeiro ponto de cada dia
-        if (primeiroPontoDoDia && diaAtual) {
-            const partes = diaAtual.split('-');
-            if (partes.length === 3) {
-                const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 
-                              'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-                const mes = meses[parseInt(partes[1]) - 1] || '';
-                const dia = parseInt(partes[2]) || 1;
-                
-                resultado.diasLabels.push({
-                    indice: indice,
-                    label: `${dia} ${mes}`
+                if (!registrosPorDia[diaAtual]) {
+                    registrosPorDia[diaAtual] = [];
+                }
+                registrosPorDia[diaAtual].push({
+                    ...reg,
+                    timestamp: timestamp
                 });
             }
-            primeiroPontoDoDia = false;
         }
-        
-        // Atualizar dia anterior
-        if (diaAtual) diaAnterior = diaAtual;
-        
-        // Armazenar dados
-        resultado.labels.push(indice.toString());
-        resultado.data.push(potencia);
-        resultado.timestamps.push(timestamp);
-        resultado.tensoes.push(tensao);
-        resultado.correntes.push(corrente);
-        resultado.energias.push(energia);
     });
     
-    console.log('✅ Dados processados:', {
-        pontos: resultado.data.length,
+    // Processar cada dia
+    Object.keys(registrosPorDia).sort().forEach((diaKey, diaIndex) => {
+        const registrosDia = registrosPorDia[diaKey];
+        
+        // Para cada registro do dia
+        registrosDia.forEach((reg, idxDia) => {
+            const potencia = parseFloat(reg.potencia || reg.power || 0);
+            const timestamp = reg.timestamp;
+            
+            // Adicionar ponto
+            resultado.labels.push(indicePonto.toString());
+            resultado.data.push(potencia);
+            resultado.timestamps.push(timestamp);
+            resultado.tensoes.push(parseFloat(reg.tensao || reg.voltage || 220));
+            resultado.correntes.push(parseFloat(reg.corrente || reg.current || 0));
+            resultado.energias.push(parseFloat(reg.energia || reg.energy || 0));
+            
+            // Primeiro ponto do dia: adicionar label
+            if (idxDia === 0) {
+                const partes = diaKey.split('-');
+                if (partes.length === 3) {
+                    const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 
+                                  'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+                    const mes = meses[parseInt(partes[1]) - 1] || '';
+                    const dia = parseInt(partes[2]) || 1;
+                    
+                    resultado.diasLabels.push({
+                        indice: indicePonto,
+                        label: `${dia} ${mes}`
+                    });
+                }
+            }
+            
+            // Último ponto do dia: marcar como fim do dia
+            if (idxDia === registrosDia.length - 1) {
+                resultado.marcadores.push({
+                    indice: indicePonto,
+                    valor: potencia
+                });
+            }
+            
+            indicePonto++;
+        });
+        
+        // Adicionar separador APÓS cada dia (exceto o último)
+        if (diaIndex < Object.keys(registrosPorDia).length - 1) {
+            resultado.separadores.push(indicePonto - 0.5);
+        }
+    });
+    
+    console.log('📊 Processado:', {
+        totalPontos: resultado.data.length,
         dias: resultado.diasLabels.length,
-        separadores: resultado.separadores.length,
-        minPotencia: Math.min(...resultado.data.filter(d => d > 0)),
-        maxPotencia: Math.max(...resultado.data)
+        marcadoresFimDia: resultado.marcadores.length,
+        separadores: resultado.separadores.length
     });
     
     return resultado;
@@ -175,22 +216,18 @@ function formatarDataTooltip(timestamp) {
 // Atualizar gráfico
 function atualizarGrafico(dados) {
     const canvas = document.getElementById('graficoConsumo');
-    if (!canvas) {
-        console.error('❌ Canvas não encontrado!');
-        return;
-    }
+    if (!canvas) return;
     
     const container = canvas.parentElement.parentElement;
     
-    // Verificar se há dados
+    // Verificar dados
     if (!dados || !dados.sucesso || !dados.registos || dados.registos.length === 0) {
         if (graficoConsumo) {
             graficoConsumo.destroy();
             graficoConsumo = null;
         }
         
-        const mensagemExistente = container.querySelector('.sem-dados');
-        if (!mensagemExistente) {
+        if (!container.querySelector('.sem-dados')) {
             canvas.style.display = 'none';
             container.innerHTML += `
                 <div class="sem-dados text-center text-muted py-5">
@@ -203,11 +240,9 @@ function atualizarGrafico(dados) {
         return;
     }
     
-    // Remover mensagem se existir
+    // Remover mensagem
     const mensagem = container.querySelector('.sem-dados');
-    if (mensagem) {
-        mensagem.remove();
-    }
+    if (mensagem) mensagem.remove();
     canvas.style.display = 'block';
     
     // Processar dados
@@ -215,46 +250,14 @@ function atualizarGrafico(dados) {
     if (!dadosProcessados) return;
     
     // Atualizar timestamp
-    const agora = new Date();
     if (ultimaAtualizacaoDOM) {
-        ultimaAtualizacaoDOM.textContent = `Última atualização: ${agora.toLocaleTimeString()}`;
+        ultimaAtualizacaoDOM.textContent = `Atualizado: ${new Date().toLocaleTimeString()}`;
     }
     
-    // Se gráfico já existe, atualizar
+    // Destruir gráfico anterior
     if (graficoConsumo) {
-        // Atualizar dados
-        graficoConsumo.data.labels = dadosProcessados.labels;
-        graficoConsumo.data.datasets[0].data = dadosProcessados.data;
-        
-        // Atualizar separadores
-        graficoConsumo.$separadoresDias = dadosProcessados.separadores.map(pos => {
-            return graficoConsumo.scales.x.getPixelForValue(pos);
-        });
-        
-        // Atualizar tooltips
-        graficoConsumo.options.plugins.tooltip.callbacks.title = function(context) {
-            const indice = context[0].dataIndex;
-            return formatarDataTooltip(dadosProcessados.timestamps[indice]);
-        };
-        
-        graficoConsumo.options.plugins.tooltip.callbacks.afterBody = function(context) {
-            const indice = context[0].dataIndex;
-            return [
-                `Tensão: ${dadosProcessados.tensoes[indice].toFixed(1)} V`,
-                `Corrente: ${dadosProcessados.correntes[indice].toFixed(2)} A`,
-                `Energia: ${dadosProcessados.energias[indice].toFixed(3)} kWh`
-            ];
-        };
-        
-        // Atualizar labels do eixo X
-        graficoConsumo.options.scales.x.ticks.callback = function(value, index) {
-            const labelObj = dadosProcessados.diasLabels.find(l => l.indice === index);
-            return labelObj ? labelObj.label : '';
-        };
-        
-        graficoConsumo.update('active');
-        console.log('🔄 Gráfico atualizado');
-        return;
+        graficoConsumo.destroy();
+        graficoConsumo = null;
     }
     
     // Criar novo gráfico
@@ -270,21 +273,18 @@ function atualizarGrafico(dados) {
                 borderColor: '#0d6efd',
                 backgroundColor: 'rgba(13, 110, 253, 0.05)',
                 borderWidth: 2,
-                tension: 0.4, // Linha mais suave
+                tension: 0.4,
                 fill: false,
-                pointRadius: 0,
-                pointHoverRadius: 6,
-                pointHoverBackgroundColor: '#0d6efd',
-                pointHoverBorderColor: '#fff',
-                pointHoverBorderWidth: 2,
-                cubicInterpolationMode: 'monotone' // Evita overshoot
+                pointRadius: 0,           // SEM PONTOS NA LINHA
+                pointHoverRadius: 0,      // SEM PONTOS NO HOVER
+                cubicInterpolationMode: 'monotone'
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             animation: {
-                duration: 300,
+                duration: 400,
                 easing: 'easeOutQuart'
             },
             interaction: {
@@ -301,17 +301,17 @@ function atualizarGrafico(dados) {
                         usePointStyle: true,
                         font: {
                             size: 12,
-                            weight: 'bold'
+                            weight: '600'
                         }
                     }
                 },
                 tooltip: {
                     mode: 'index',
                     intersect: false,
-                    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
                     titleColor: '#fff',
                     bodyColor: '#fff',
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderColor: '#0d6efd',
                     borderWidth: 1,
                     cornerRadius: 6,
                     padding: 12,
@@ -325,19 +325,51 @@ function atualizarGrafico(dados) {
                     callbacks: {
                         title: function(context) {
                             const indice = context[0].dataIndex;
-                            return formatarDataTooltip(dadosProcessados.timestamps[indice]);
+                            const timestamp = dadosProcessados.timestamps[indice];
+                            const formatado = formatarDataTooltip(timestamp);
+                            
+                            // Verificar se é um marcador de fim de dia
+                            const isFimDia = dadosProcessados.marcadores.some(m => m.indice === indice);
+                            if (isFimDia) {
+                                return `🔴 FIM DO DIA - ${formatado}`;
+                            }
+                            
+                            return formatado;
                         },
                         label: function(context) {
                             const valor = context.parsed.y;
-                            return `Potência: ${valor.toFixed(1)} W`;
+                            const indice = context.dataIndex;
+                            
+                            // Verificar se é fim de dia
+                            const isFimDia = dadosProcessados.marcadores.some(m => m.indice === indice);
+                            const prefixo = isFimDia ? '🔴 ' : '';
+                            
+                            return `${prefixo}Potência: ${valor.toFixed(1)} W`;
                         },
                         afterBody: function(context) {
                             const indice = context[0].dataIndex;
-                            return [
+                            const isFimDia = dadosProcessados.marcadores.some(m => m.indice === indice);
+                            
+                            const info = [
                                 `Tensão: ${dadosProcessados.tensoes[indice].toFixed(1)} V`,
                                 `Corrente: ${dadosProcessados.correntes[indice].toFixed(2)} A`,
                                 `Energia: ${dadosProcessados.energias[indice].toFixed(3)} kWh`
                             ];
+                            
+                            if (isFimDia) {
+                                info.unshift('───── FIM DO DIA ─────');
+                            }
+                            
+                            return info;
+                        },
+                        footer: function(context) {
+                            const indice = context[0].dataIndex;
+                            const isFimDia = dadosProcessados.marcadores.some(m => m.indice === indice);
+                            
+                            if (isFimDia) {
+                                return '⠀'; // Espaço invisível para separar
+                            }
+                            return null;
                         }
                     }
                 }
@@ -354,18 +386,18 @@ function atualizarGrafico(dados) {
                         maxRotation: 0,
                         minRotation: 0,
                         callback: function(value, index) {
-                            // CORREÇÃO: Mostrar labels como "2 dez", "3 dez"
+                            // Mostrar APENAS no primeiro ponto de cada dia
                             const labelObj = dadosProcessados.diasLabels.find(l => l.indice === index);
                             return labelObj ? labelObj.label : '';
                         },
-                        maxTicksLimit: 15,
-                        autoSkip: true,
-                        autoSkipPadding: 20,
+                        maxTicksLimit: 31, // Máximo 31 dias
+                        autoSkip: false,   // NÃO pular ticks
                         font: {
                             size: 11,
                             weight: '500'
                         },
-                        color: '#555'
+                        color: '#555',
+                        padding: 5
                     },
                     title: {
                         display: true,
@@ -394,7 +426,8 @@ function atualizarGrafico(dados) {
                         color: '#555',
                         callback: function(value) {
                             return value + ' W';
-                        }
+                        },
+                        padding: 5
                     },
                     title: {
                         display: true,
@@ -411,61 +444,92 @@ function atualizarGrafico(dados) {
             elements: {
                 line: {
                     tension: 0.4,
-                    cubicInterpolationMode: 'monotone'
+                    cubicInterpolationMode: 'monotone',
+                    borderCapStyle: 'round'
                 },
                 point: {
-                    radius: 0
+                    radius: 0,
+                    hoverRadius: 0
                 }
             }
         }
     });
     
-    // Armazenar separadores
-    graficoConsumo.$separadoresDias = dadosProcessados.separadores.map(pos => {
-        return graficoConsumo.scales.x.getPixelForValue(pos);
-    });
+    // Calcular posições dos separadores
+    if (graficoConsumo.scales.x) {
+        graficoConsumo.$separadoresDias = dadosProcessados.separadores.map(pos => {
+            return graficoConsumo.scales.x.getPixelForValue(pos);
+        });
+    }
     
-    console.log('✅ Gráfico criado com sucesso');
-    console.log('📊 Labels do eixo X:', dadosProcessados.diasLabels.map(d => d.label));
+    // Calcular posições dos marcadores de fim de dia
+    graficoConsumo.$marcadoresFimDia = [];
+    if (graficoConsumo.scales.x && graficoConsumo.scales.y) {
+        dadosProcessados.marcadores.forEach(marcador => {
+            const xPos = graficoConsumo.scales.x.getPixelForValue(marcador.indice);
+            const yPos = graficoConsumo.scales.y.getPixelForValue(marcador.valor);
+            
+            if (xPos && yPos) {
+                graficoConsumo.$marcadoresFimDia.push({
+                    x: xPos,
+                    y: yPos,
+                    indice: marcador.indice,
+                    valor: marcador.valor
+                });
+            }
+        });
+    }
+    
+    console.log('✅ Gráfico criado com:', {
+        separadores: graficoConsumo.$separadoresDias?.length || 0,
+        marcadores: graficoConsumo.$marcadoresFimDia?.length || 0
+    });
 }
 
 // Função principal
-async function carregarEAtualizarGrafico() {
+async function carregarEAtualizar() {
     try {
         const dados = await buscarDadosPzem1();
         if (dados) {
             atualizarGrafico(dados);
         }
     } catch (erro) {
-        console.error('❌ Erro na atualização:', erro);
+        console.error('Erro:', erro);
     }
 }
 
 // Inicializar
 function iniciarGrafico() {
-    console.log('🚀 Iniciando gráfico PZEM 1...');
+    console.log('🚀 Iniciando gráfico PZEM 1 (sem pontos, apenas marcadores)...');
     
-    // Encontrar elemento de atualização
     ultimaAtualizacaoDOM = document.getElementById('ultimaAtualizacao');
     
     // Primeira carga
-    carregarEAtualizarGrafico();
+    carregarEAtualizar();
     
-    // Atualizar a cada 10 segundos
-    if (intervaloAtualizacao) {
-        clearInterval(intervaloAtualizacao);
-    }
-    
-    intervaloAtualizacao = setInterval(carregarEAtualizarGrafico, 10000);
+    // Atualizar a cada 10s
+    if (intervaloAtualizacao) clearInterval(intervaloAtualizacao);
+    intervaloAtualizacao = setInterval(carregarEAtualizar, 10000);
     
     // Redimensionar
-    window.addEventListener('resize', function() {
-        if (graficoConsumo) {
-            setTimeout(() => {
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            if (graficoConsumo) {
                 graficoConsumo.resize();
+                
+                // Recalcular posições dos marcadores após redimensionamento
+                if (graficoConsumo.$marcadoresFimDia && graficoConsumo.scales.x && graficoConsumo.scales.y) {
+                    graficoConsumo.$marcadoresFimDia.forEach(marcador => {
+                        marcador.x = graficoConsumo.scales.x.getPixelForValue(marcador.indice);
+                        marcador.y = graficoConsumo.scales.y.getPixelForValue(marcador.valor);
+                    });
+                }
+                
                 graficoConsumo.update('none');
-            }, 100);
-        }
+            }
+        }, 150);
     });
 }
 
@@ -473,11 +537,16 @@ function iniciarGrafico() {
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', iniciarGrafico);
 } else {
-    iniciarGrafico();
+    setTimeout(iniciarGrafico, 100);
 }
 
 // Debug
-window.debugPzem1 = {
-    atualizar: carregarEAtualizarGrafico,
-    getGrafico: () => graficoConsumo
+window.graficoPzem1 = {
+    atualizar: carregarEAtualizar,
+    getDados: () => graficoConsumo?.data,
+    forcarRedraw: () => {
+        if (graficoConsumo) {
+            graficoConsumo.update();
+        }
+    }
 };
