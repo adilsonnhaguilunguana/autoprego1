@@ -1,14 +1,14 @@
 // ===============================
-// GRÁFICO DE CONSUMO MENSAL SIMPLIFICADO
+// GRÁFICO DE CONSUMO MENSAL CORRIGIDO
 // ===============================
 
 let graficoConsumo = null;
 let intervaloAtualizacao = null;
+let dadosOriginais = []; // Armazenar dados originais
 
 // Função para buscar dados
 async function carregarDados() {
     try {
-        console.log('Buscando dados da API...');
         const resposta = await fetch('/api/historico-consumo-mensal?_=' + Date.now());
         
         if (!resposta.ok) {
@@ -16,10 +16,13 @@ async function carregarDados() {
         }
         
         const dados = await resposta.json();
-        console.log('Dados recebidos:', dados);
         
         if (dados.sucesso) {
-            atualizarGrafico(dados.registos);
+            // Verificar se os dados são diferentes
+            if (JSON.stringify(dados.registos) !== JSON.stringify(dadosOriginais)) {
+                dadosOriginais = dados.registos;
+                atualizarGrafico(dados.registos);
+            }
         } else {
             console.error('API retornou erro:', dados.mensagem);
         }
@@ -30,13 +33,8 @@ async function carregarDados() {
 
 // Função para atualizar o gráfico
 function atualizarGrafico(registros) {
-    console.log('Atualizando gráfico com', registros?.length, 'registros');
-    
     const canvas = document.getElementById('graficoConsumo');
-    if (!canvas) {
-        console.error('Canvas não encontrado!');
-        return;
-    }
+    if (!canvas) return;
     
     const container = canvas.parentElement.parentElement;
     
@@ -47,7 +45,6 @@ function atualizarGrafico(registros) {
             graficoConsumo = null;
         }
         
-        // Mostrar mensagem
         const mensagemExistente = container.querySelector('.sem-dados');
         if (!mensagemExistente) {
             canvas.style.display = 'none';
@@ -69,62 +66,18 @@ function atualizarGrafico(registros) {
     }
     canvas.style.display = 'block';
     
-    // Preparar dados
-    const labels = [];
-    const potencias = [];
-    const labelsDias = [];
+    // Processar dados
+    const dadosProcessados = processarDados(registros);
     
-    let diaAnterior = '';
-    
-    registros.forEach((reg, index) => {
-        // Extrair data/hora
-        const dataHora = reg.data_hora || reg.timestamp || reg.hora || '';
-        
-        // Extrair potência
-        const potencia = parseFloat(reg.potencia || reg.power || 0);
-        potencias.push(potencia);
-        
-        // Criar label do eixo X
-        labels.push(index); // Usar índice como label
-        
-        // Verificar mudança de dia para labels
-        if (dataHora) {
-            const dataStr = dataHora.toString().split(' ')[0]; // YYYY-MM-DD
-            if (dataStr !== diaAnterior) {
-                // Extrair mês e dia
-                const partes = dataStr.split('-');
-                if (partes.length === 3) {
-                    const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 
-                                  'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-                    const mes = meses[parseInt(partes[1]) - 1] || 'jan';
-                    const dia = parseInt(partes[2]) || 1;
-                    
-                    labelsDias.push({
-                        index: index,
-                        label: `${mes} ${dia}`
-                    });
-                    diaAnterior = dataStr;
-                }
-            }
-        }
-    });
-    
-    console.log('Dados processados:', { 
-        total: potencias.length, 
-        labelsDias: labelsDias.length,
-        maxPotencia: Math.max(...potencias)
-    });
-    
-    // Se já existe gráfico, atualizar
+    // Se já existe gráfico, atualizar dados
     if (graficoConsumo) {
-        graficoConsumo.data.labels = labels;
-        graficoConsumo.data.datasets[0].data = potencias;
+        graficoConsumo.data.labels = dadosProcessados.labels;
+        graficoConsumo.data.datasets[0].data = dadosProcessados.potencias;
         
-        // Configurar labels do eixo X
-        graficoConsumo.options.scales.x.ticks.callback = function(value, index) {
-            const labelObj = labelsDias.find(l => l.index === index);
-            return labelObj ? labelObj.label : '';
-        };
+        // Atualizar separadores
+        if (dadosProcessados.marcadoresFimDia && dadosProcessados.marcadoresFimDia.length > 0) {
+            atualizarMarcadoresFimDia(graficoConsumo, dadosProcessados.marcadoresFimDia);
+        }
         
         graficoConsumo.update();
         return;
@@ -136,17 +89,33 @@ function atualizarGrafico(registros) {
     graficoConsumo = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: labels,
+            labels: dadosProcessados.labels,
             datasets: [{
                 label: 'Potência (W)',
-                data: potencias,
+                data: dadosProcessados.potencias,
                 borderColor: '#0d6efd',
                 backgroundColor: 'rgba(13, 110, 253, 0.1)',
                 borderWidth: 2,
-                tension: 0.2,
+                tension: 0.3, // Linha suave
                 fill: false,
-                pointRadius: 0,
-                pointHoverRadius: 5
+                pointRadius: 0, // Sem pontos na linha principal
+                pointHoverRadius: 6,
+                pointHoverBackgroundColor: '#0d6efd',
+                segment: {
+                    borderColor: ctx => 'rgba(13, 110, 253, 1)' // Linha contínua sem interrupções
+                }
+            },
+            // Dataset adicional para marcadores de fim de dia
+            {
+                label: 'Fim do Dia',
+                data: dadosProcessados.marcadoresData,
+                borderColor: '#ff6b6b',
+                backgroundColor: '#ff6b6b',
+                borderWidth: 0,
+                pointRadius: 4, // Pontos visíveis apenas para fim de dia
+                pointHoverRadius: 8,
+                pointStyle: 'circle',
+                showLine: false // Não conectar os pontos com linha
             }]
         },
         options: {
@@ -154,7 +123,12 @@ function atualizarGrafico(registros) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: true
+                    display: true,
+                    labels: {
+                        filter: function(item) {
+                            return item.text !== 'Fim do Dia'; // Esconder legenda dos marcadores
+                        }
+                    }
                 },
                 tooltip: {
                     callbacks: {
@@ -164,15 +138,20 @@ function atualizarGrafico(registros) {
                             const dataHora = reg.data_hora || reg.timestamp || reg.hora || '';
                             
                             if (dataHora) {
-                                const data = new Date(dataHora);
-                                if (!isNaN(data.getTime())) {
-                                    const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 
-                                                  'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-                                    const mes = meses[data.getMonth()];
-                                    const dia = data.getDate();
-                                    const hora = data.getHours().toString().padStart(2, '0');
-                                    const minuto = data.getMinutes().toString().padStart(2, '0');
-                                    return `${mes} ${dia} - ${hora}:${minuto}`;
+                                try {
+                                    const data = new Date(dataHora);
+                                    if (!isNaN(data.getTime())) {
+                                        const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 
+                                                     'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+                                        const mes = meses[data.getMonth()];
+                                        const dia = data.getDate();
+                                        const hora = data.getHours().toString().padStart(2, '0');
+                                        const minuto = data.getMinutes().toString().padStart(2, '0');
+                                        return `${mes} ${dia} - ${hora}:${minuto}`;
+                                    }
+                                } catch (e) {
+                                    // Fallback para formato string
+                                    return dataHora;
                                 }
                             }
                             return `Ponto ${index + 1}`;
@@ -181,6 +160,11 @@ function atualizarGrafico(registros) {
                             const index = context.dataIndex;
                             const reg = registros[index];
                             const potencia = parseFloat(reg.potencia || reg.power || 0);
+                            const datasetLabel = context.dataset.label || '';
+                            
+                            if (datasetLabel === 'Fim do Dia') {
+                                return `Fim do dia: ${potencia.toFixed(1)} W`;
+                            }
                             return `Potência: ${potencia.toFixed(1)} W`;
                         },
                         afterLabel: function(context) {
@@ -203,30 +187,203 @@ function atualizarGrafico(registros) {
                 x: {
                     ticks: {
                         callback: function(value, index) {
-                            const labelObj = labelsDias.find(l => l.index === index);
+                            const labelObj = dadosProcessados.labelsDias.find(l => l.index === index);
                             return labelObj ? labelObj.label : '';
                         },
-                        maxTicksLimit: 20
+                        maxTicksLimit: 15,
+                        autoSkip: true
+                    },
+                    grid: {
+                        color: function(context) {
+                            // Desenhar linha vertical para separar dias
+                            const labelObj = dadosProcessados.labelsDias.find(l => l.index === context.index);
+                            if (labelObj && labelObj.index === context.index) {
+                                return 'rgba(0, 0, 0, 0.1)';
+                            }
+                            return 'rgba(0, 0, 0, 0.05)';
+                        },
+                        lineWidth: function(context) {
+                            const labelObj = dadosProcessados.labelsDias.find(l => l.index === context.index);
+                            if (labelObj && labelObj.index === context.index) {
+                                return 2;
+                            }
+                            return 1;
+                        }
                     }
                 },
                 y: {
                     beginAtZero: true,
+                    grace: '10%', // Dar espaço no topo
                     title: {
                         display: true,
                         text: 'Potência (W)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value + ' W';
+                        }
                     }
+                }
+            },
+            elements: {
+                line: {
+                    tension: 0.3 // Linha suave
                 }
             }
         }
     });
     
-    console.log('Gráfico criado com sucesso!');
+    // Adicionar plugin customizado para melhor separação de dias
+    Chart.register({
+        id: 'separadorDiasCustom',
+        afterDraw: function(chart) {
+            const ctx = chart.ctx;
+            const xAxis = chart.scales.x;
+            const yAxis = chart.scales.y;
+            
+            ctx.save();
+            ctx.strokeStyle = 'rgba(100, 100, 100, 0.2)';
+            ctx.setLineDash([5, 3]);
+            ctx.lineWidth = 1;
+            
+            dadosProcessados.labelsDias.forEach(labelObj => {
+                if (labelObj.index > 0) {
+                    const pixel = xAxis.getPixelForValue(labelObj.index - 0.5);
+                    
+                    if (pixel > xAxis.left && pixel < xAxis.right) {
+                        ctx.beginPath();
+                        ctx.moveTo(pixel, yAxis.top);
+                        ctx.lineTo(pixel, yAxis.bottom);
+                        ctx.stroke();
+                    }
+                }
+            });
+            
+            ctx.restore();
+        }
+    });
+}
+
+// Processar dados
+function processarDados(registros) {
+    const labels = [];
+    const potencias = [];
+    const labelsDias = [];
+    const marcadoresFimDia = [];
+    const marcadoresData = [];
+    
+    let diaAnterior = '';
+    let ultimoIndiceDia = -1;
+    let primeiraLeituraDia = true;
+    
+    // Inicializar array de marcadores com null
+    registros.forEach(() => {
+        marcadoresData.push(null);
+    });
+    
+    registros.forEach((reg, index) => {
+        // Extrair data/hora
+        const dataHora = reg.data_hora || reg.timestamp || reg.hora || '';
+        
+        // Extrair potência
+        const potencia = parseFloat(reg.potencia || reg.power || 0);
+        potencias.push(potencia);
+        
+        // Criar label do eixo X
+        labels.push(index);
+        
+        // Extrair dia
+        let diaAtual = '';
+        if (dataHora) {
+            const match = dataHora.toString().match(/(\d{4})-(\d{2})-(\d{2})/);
+            if (match) {
+                diaAtual = match[0];
+            }
+        }
+        
+        // Verificar mudança de dia
+        if (diaAtual && diaAtual !== diaAnterior) {
+            // Adicionar marcador no último ponto do dia anterior
+            if (ultimoIndiceDia >= 0 && potencias[ultimoIndiceDia] > 0) {
+                marcadoresFimDia.push(ultimoIndiceDia);
+                marcadoresData[ultimoIndiceDia] = potencias[ultimoIndiceDia];
+            }
+            
+            // Adicionar label para novo dia
+            if (primeiraLeituraDia && diaAtual) {
+                const partes = diaAtual.split('-');
+                if (partes.length === 3) {
+                    const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 
+                                  'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+                    const mes = meses[parseInt(partes[1]) - 1] || 'jan';
+                    const dia = parseInt(partes[2]) || 1;
+                    
+                    labelsDias.push({
+                        index: index,
+                        label: `${mes} ${dia}`
+                    });
+                }
+            }
+            
+            diaAnterior = diaAtual;
+            primeiraLeituraDia = true;
+        }
+        
+        ultimoIndiceDia = index;
+    });
+    
+    // Adicionar último marcador se necessário
+    if (ultimoIndiceDia >= 0 && potencias[ultimoIndiceDia] > 0) {
+        marcadoresFimDia.push(ultimoIndiceDia);
+        marcadoresData[ultimoIndiceDia] = potencias[ultimoIndiceDia];
+    }
+    
+    return {
+        labels,
+        potencias,
+        labelsDias,
+        marcadoresFimDia,
+        marcadoresData,
+        registros
+    };
+}
+
+// Atualizar marcadores de fim de dia
+function atualizarMarcadoresFimDia(grafico, marcadores) {
+    if (!grafico.data.datasets[1]) {
+        // Adicionar dataset de marcadores se não existir
+        const marcadoresData = new Array(grafico.data.labels.length).fill(null);
+        marcadores.forEach(idx => {
+            if (grafico.data.datasets[0].data[idx] !== undefined) {
+                marcadoresData[idx] = grafico.data.datasets[0].data[idx];
+            }
+        });
+        
+        grafico.data.datasets.push({
+            label: 'Fim do Dia',
+            data: marcadoresData,
+            borderColor: '#ff6b6b',
+            backgroundColor: '#ff6b6b',
+            borderWidth: 0,
+            pointRadius: 4,
+            pointHoverRadius: 8,
+            pointStyle: 'circle',
+            showLine: false
+        });
+    } else {
+        // Atualizar dataset existente
+        const marcadoresData = new Array(grafico.data.labels.length).fill(null);
+        marcadores.forEach(idx => {
+            if (grafico.data.datasets[0].data[idx] !== undefined) {
+                marcadoresData[idx] = grafico.data.datasets[0].data[idx];
+            }
+        });
+        grafico.data.datasets[1].data = marcadoresData;
+    }
 }
 
 // Inicializar
 function iniciarGrafico() {
-    console.log('Iniciando gráfico mensal...');
-    
     // Primeira carga
     carregarDados();
     
@@ -244,3 +401,10 @@ if (document.readyState === 'loading') {
 } else {
     iniciarGrafico();
 }
+
+// Para debug no console
+window.debugGrafico = {
+    atualizar: carregarDados,
+    getDados: () => dadosOriginais,
+    getGrafico: () => graficoConsumo
+};
