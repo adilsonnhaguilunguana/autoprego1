@@ -947,7 +947,7 @@ html
                 <h4><i class="bi bi-bar-chart"></i> Gráficos e Visualizações</h4>
                 <div class="charts-grid">
                         <div class="chart-container">
-                        {% include 'grafico_diario.html' %}
+                        {% include 'gráfico_diario.html' %}
                         </div>
                     <div class="chart-container">
                         <h5>Picos de Consumo Diários (Últimos 7 dias)</h5>
@@ -1368,5 +1368,5 @@ html
 <script src="{{ url_for('static', filename='js/dashboard_reset.js') }}"></script>
 <script src="{{ url_for('static', filename='js/relatorios.js') }}"></script>
 <script src="{{ url_for('static', filename='js/notificacoes.js') }}"></script>
-<script src="{{ url_for('static', filename='js/grafico_diario.js') }}"></script>
+<script src="{{ url_for('static', filename='js/gráfico_diario.js') }}"></script>
 {% endblock %}
