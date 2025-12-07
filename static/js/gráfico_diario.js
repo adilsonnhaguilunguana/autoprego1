@@ -1,18 +1,13 @@
-// gráfico_diario.js
+// grafico_diario.js
 
 /**
- * MÓDULO DE GRÁFICO DIÁRIO DE POTÊNCIA
- * Exibe gráfico de potência diária com tooltip completo
+ * MÓDULO DE GRÁFICO DIÁRIO DE POTÊNCIA - diasChart
  */
 
-// ============================================
-// CONFIGURAÇÕES E ESTADO
-// ============================================
-
-const GraficoPotenciaDiaria = {
+const GraficoDias = {
     // Estado do módulo
     state: {
-        chart: null,
+        chart: null,          // Agora será diasChart
         dadosCompletos: null,
         periodoAtual: 'week',
         isLoading: false
@@ -21,13 +16,13 @@ const GraficoPotenciaDiaria = {
     // Configurações
     config: {
         apiEndpoint: '/api/grafico-diario',
+        chartId: 'diasChart',  // ID do canvas
         chartColors: {
             primary: '#1a73e8',
             primaryLight: 'rgba(26, 115, 232, 0.1)',
             success: '#28a745',
             danger: '#dc3545',
-            warning: '#ffc107',
-            info: '#17a2b8'
+            warning: '#ffc107'
         }
     },
     
@@ -39,12 +34,12 @@ const GraficoPotenciaDiaria = {
      * Inicializa o módulo do gráfico
      */
     init: function() {
-        console.log('🚀 Inicializando módulo de gráfico diário...');
+        console.log('🚀 Inicializando gráfico diasChart...');
         
         // Verificar se o canvas existe
-        const canvas = document.getElementById('energyChart');
+        const canvas = document.getElementById(this.config.chartId);
         if (!canvas) {
-            console.error('❌ Canvas #energyChart não encontrado');
+            console.error(`❌ Canvas #${this.config.chartId} não encontrado`);
             return false;
         }
         
@@ -57,10 +52,7 @@ const GraficoPotenciaDiaria = {
         // Carregar dados iniciais
         this.carregarDados('week');
         
-        // Configurar event listeners
-        this._configurarEventListeners();
-        
-        console.log('✅ Módulo de gráfico diário inicializado');
+        console.log('✅ Gráfico diasChart inicializado');
         return true;
     },
     
@@ -72,7 +64,7 @@ const GraficoPotenciaDiaria = {
      * Inicializa o gráfico Chart.js
      */
     _inicializarChart: function() {
-        const ctx = document.getElementById('energyChart').getContext('2d');
+        const ctx = document.getElementById(this.config.chartId).getContext('2d');
         
         this.state.chart = new Chart(ctx, {
             type: 'line',
@@ -255,80 +247,18 @@ const GraficoPotenciaDiaria = {
      * Abre modal para período personalizado
      */
     _abrirModalPersonalizado: function() {
-        // Usar SweetAlert2 se disponível, senão usar prompt nativo
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: 'Período Personalizado',
-                html: `
-                    <div class="mb-3">
-                        <label for="start-date" class="form-label">Data Inicial</label>
-                        <input type="date" id="start-date" class="form-control" 
-                               value="${this._formatarDataParaInput(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))}">
-                    </div>
-                    <div class="mb-3">
-                        <label for="end-date" class="form-label">Data Final</label>
-                        <input type="date" id="end-date" class="form-control" 
-                               value="${this._formatarDataParaInput(new Date())}">
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Carregar',
-                cancelButtonText: 'Cancelar',
-                focusConfirm: false,
-                preConfirm: () => {
-                    const start = document.getElementById('start-date').value;
-                    const end = document.getElementById('end-date').value;
-                    
-                    if (!start || !end) {
-                        Swal.showValidationMessage('Preencha ambas as datas');
-                        return false;
-                    }
-                    
-                    if (new Date(start) > new Date(end)) {
-                        Swal.showValidationMessage('Data inicial não pode ser maior que final');
-                        return false;
-                    }
-                    
-                    return { start, end };
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    this.carregarDados(`custom?start=${result.value.start}&end=${result.value.end}`);
-                }
-            });
-        } else {
-            // Fallback para prompt nativo
-            const start = prompt('Data inicial (YYYY-MM-DD):', 
-                this._formatarDataParaInput(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)));
-            const end = prompt('Data final (YYYY-MM-DD):', 
-                this._formatarDataParaInput(new Date()));
-            
-            if (start && end) {
-                this.carregarDados(`custom?start=${start}&end=${end}`);
-            }
-        }
-    },
-    
-    /**
-     * Configura event listeners
-     */
-    _configurarEventListeners: function() {
-        // Recarregar quando a aba for mostrada
-        const monitoramentoTab = document.getElementById('monitoramento-tab');
-        if (monitoramentoTab) {
-            monitoramentoTab.addEventListener('shown.bs.tab', () => {
-                if (!this.state.chart.data.labels.length) {
-                    this.carregarDados(this.state.periodoAtual);
-                }
-            });
-        }
+        // Para simplificar, vamos usar prompt
+        const hoje = new Date();
+        const umaSemanaAtras = new Date(hoje.getTime() - 7 * 24 * 60 * 60 * 1000);
         
-        // Recarregar ao redimensionar janela
-        window.addEventListener('resize', () => {
-            if (this.state.chart) {
-                setTimeout(() => this.state.chart.resize(), 100);
-            }
-        });
+        const start = prompt('Data inicial (YYYY-MM-DD):', 
+            umaSemanaAtras.toISOString().split('T')[0]);
+        const end = prompt('Data final (YYYY-MM-DD):', 
+            hoje.toISOString().split('T')[0]);
+        
+        if (start && end) {
+            this.carregarDados(`custom?start=${start}&end=${end}`);
+        }
     },
     
     // ============================================
@@ -344,34 +274,30 @@ const GraficoPotenciaDiaria = {
             this.state.periodoAtual = periodo;
             
             this._showLoading(true);
-            console.log(`📊 Carregando dados para período: ${periodo}`);
             
-            // Construir URL
+            // URL da API
             const url = `${this.config.apiEndpoint}?period=${periodo}`;
             
-            // Fazer requisição
             const response = await fetch(url);
             
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error(`HTTP ${response.status}`);
             }
             
             const data = await response.json();
             
             if (data.success) {
                 this._processarDados(data);
-                this._showToast('Dados atualizados com sucesso!', 'success');
             } else {
                 throw new Error(data.message || 'Dados inválidos');
             }
             
         } catch (error) {
-            console.error('❌ Erro ao carregar dados:', error);
-            this._showToast(`Erro: ${error.message}. Usando dados de demonstração.`, 'warning');
+            console.error('Erro ao carregar dados:', error);
             this._usarDadosDemonstracao();
         } finally {
-            this.state.isLoading = false;
             this._showLoading(false);
+            this.state.isLoading = false;
         }
     },
     
@@ -393,8 +319,6 @@ const GraficoPotenciaDiaria = {
         
         // Atualizar estatísticas
         this._atualizarEstatisticas(data);
-        
-        console.log(`✅ Gráfico atualizado com ${data.datas?.length || 0} pontos`);
     },
     
     /**
@@ -475,7 +399,7 @@ const GraficoPotenciaDiaria = {
      * Gera dados de demonstração
      */
     _usarDadosDemonstracao: function() {
-        console.log('🔄 Usando dados de demonstração');
+        console.log('Usando dados de demonstração para diasChart');
         
         const datas = [];
         const potencia = [];
@@ -492,7 +416,7 @@ const GraficoPotenciaDiaria = {
             data.setDate(hoje.getDate() - i);
             
             // Formatar data
-            datas.push(this._formatarDataParaGrafico(data));
+            datas.push(data.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }));
             
             // Gerar valores realistas
             const pwr = Math.random() * 2000 + 800;
@@ -514,8 +438,7 @@ const GraficoPotenciaDiaria = {
             energia: energia,
             total_dias: datas.length,
             periodo_inicio: hoje.toISOString().split('T')[0],
-            periodo_fim: hoje.toISOString().split('T')[0],
-            message: 'Dados de demonstração'
+            periodo_fim: hoje.toISOString().split('T')[0]
         };
         
         this._processarDados(mockData);
@@ -526,23 +449,6 @@ const GraficoPotenciaDiaria = {
     // ============================================
     
     /**
-     * Formata data para exibição no gráfico
-     */
-    _formatarDataParaGrafico: function(data) {
-        return data.toLocaleDateString('pt-BR', { 
-            day: 'numeric', 
-            month: 'short' 
-        });
-    },
-    
-    /**
-     * Formata data para input type="date"
-     */
-    _formatarDataParaInput: function(data) {
-        return data.toISOString().split('T')[0];
-    },
-    
-    /**
      * Calcula média de array
      */
     _calcularMedia: function(arr) {
@@ -551,65 +457,37 @@ const GraficoPotenciaDiaria = {
     },
     
     /**
-     * Calcula soma de array
-     */
-    _calcularSoma: function(arr) {
-        if (!arr || arr.length === 0) return 0;
-        return arr.reduce((a, b) => a + b, 0);
-    },
-    
-    /**
      * Mostra/oculta loading
      */
     _showLoading: function(show) {
-        let overlay = document.getElementById('grafico-loading-overlay');
+        const container = document.querySelector('.chart-container');
+        if (!container) return;
+        
+        let overlay = container.querySelector('.loading-overlay');
         
         if (!overlay) {
             overlay = document.createElement('div');
-            overlay.id = 'grafico-loading-overlay';
             overlay.className = 'loading-overlay';
             overlay.innerHTML = `
-                <div class="loading-spinner"></div>
-                <p>Carregando dados...</p>
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
             `;
-            document.querySelector('.chart-container').appendChild(overlay);
+            container.style.position = 'relative';
+            container.appendChild(overlay);
         }
         
-        overlay.classList.toggle('active', show);
+        overlay.style.display = show ? 'flex' : 'none';
     },
     
     /**
      * Mostra toast de notificação
      */
     _showToast: function(message, type = 'info') {
-        // Usar sistema de toast existente se disponível
+        // Use o sistema de toast do seu dashboard
         if (typeof showToast === 'function') {
             showToast(message, type);
-            return;
         }
-        
-        // Fallback simples
-        const container = document.getElementById('toast-container') || 
-                         document.querySelector('.toast-container');
-        
-        if (!container) return;
-        
-        const toastId = 'toast-' + Date.now();
-        const toastHTML = `
-            <div id="${toastId}" class="toast show" role="alert">
-                <div class="toast-body">
-                    ${message}
-                </div>
-            </div>
-        `;
-        
-        container.insertAdjacentHTML('beforeend', toastHTML);
-        
-        // Remover após 5 segundos
-        setTimeout(() => {
-            const toast = document.getElementById(toastId);
-            if (toast) toast.remove();
-        }, 5000);
     },
     
     // ============================================
@@ -640,10 +518,7 @@ const GraficoPotenciaDiaria = {
      * Exporta dados atuais como CSV
      */
     exportarCSV: function() {
-        if (!this.state.dadosCompletos) {
-            this._showToast('Nenhum dado disponível para exportar', 'warning');
-            return;
-        }
+        if (!this.state.dadosCompletos) return;
         
         const dados = this.state.dadosCompletos;
         let csv = 'Data,Potencia(W),Tensao(V),Corrente(A),Energia(kWh)\n';
@@ -657,27 +532,18 @@ const GraficoPotenciaDiaria = {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `grafico_potencia_${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `dias_chart_${new Date().toISOString().split('T')[0]}.csv`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
-        
-        this._showToast('Dados exportados com sucesso!', 'success');
     },
     
     /**
-     * Retorna dados atuais (para debug)
+     * Retorna dados atuais
      */
     getDados: function() {
         return this.state.dadosCompletos;
-    },
-    
-    /**
-     * Retorna estado atual
-     */
-    getEstado: function() {
-        return this.state;
     }
 };
 
@@ -686,17 +552,14 @@ const GraficoPotenciaDiaria = {
 // ============================================
 
 // Inicializar quando o DOM estiver pronto
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        // Aguardar um pouco para garantir que tudo está carregado
-        setTimeout(() => GraficoPotenciaDiaria.init(), 100);
-    });
-} else {
-    // DOM já está pronto
-    setTimeout(() => GraficoPotenciaDiaria.init(), 100);
-}
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar imediatamente se o canvas existir
+    if (document.getElementById('diasChart')) {
+        setTimeout(() => GraficoDias.init(), 100);
+    }
+});
 
-// Expor módulo globalmente para debug
-window.GraficoPotenciaDiaria = GraficoPotenciaDiaria;
+// Expor módulo globalmente
+window.GraficoDias = GraficoDias;
 
-console.log('📈 Módulo de gráfico diário carregado');
+console.log('📈 Módulo diasChart carregado');
