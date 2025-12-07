@@ -946,8 +946,9 @@ html
             <div class="dashboard-section">
                 <h4><i class="bi bi-bar-chart"></i> Gráficos e Visualizações</h4>
                 <div class="charts-grid">
-                        <div class="chart-container">
-                        {% include 'gráfico_diario.html' %}
+                        <!-- Seu dashboard.html -->
+                        <div class="chart-container" style="min-height: 400px;">
+                            {% include 'gráfico_diario.html' %}
                         </div>
                     <div class="chart-container">
                         <h5>Picos de Consumo Diários (Últimos 7 dias)</h5>

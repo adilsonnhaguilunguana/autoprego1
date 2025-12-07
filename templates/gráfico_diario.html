@@ -16,7 +16,9 @@
     </div>
     
     <div class="chart-wrapper">
-        <canvas id="diasChart"></canvas>
+        <div class="chart-canvas-container">
+            <canvas id="diasChart"></canvas>
+        </div>
         <div class="chart-loading-overlay">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Carregando...</span>
@@ -34,14 +36,10 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     border: 1px solid var(--border-color, #dee2e6);
     transition: all 0.3s ease;
+    width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
-}
-
-.dias-chart-container:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
 }
 
 /* Cabeçalho do gráfico */
@@ -52,6 +50,7 @@
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
     gap: 1rem;
+    flex-shrink: 0;
 }
 
 .chart-header h5 {
@@ -87,6 +86,7 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    flex-shrink: 0;
 }
 
 .btn-periodo:hover {
@@ -101,21 +101,29 @@
     box-shadow: 0 2px 8px rgba(26, 115, 232, 0.3);
 }
 
-.btn-periodo i {
-    font-size: 0.875rem;
-}
-
-/* Container do canvas */
+/* Container principal do gráfico */
 .chart-wrapper {
     position: relative;
     flex: 1;
-    min-height: 300px;
+    min-height: 0; /* IMPORTANTE: Permite que o gráfico encolha */
     width: 100%;
+    display: flex;
+}
+
+/* Container do canvas - ESSENCIAL para responsividade */
+.chart-canvas-container {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    height: 100%;
 }
 
 #diasChart {
+    display: block;
     width: 100% !important;
     height: 100% !important;
+    max-width: 100%;
+    max-height: 100%;
 }
 
 /* Loading overlay */
@@ -177,6 +185,19 @@
     margin: 4px 0 !important;
 }
 
+/* ===== AJUSTES ESPECÍFICOS PARA O SEU LAYOUT ===== */
+/* Seu container pai */
+.chart-container {
+    width: 100%;
+    height: 100%;
+    min-height: 400px; /* Altura mínima */
+}
+
+/* Garantir que o gráfico use 100% do espaço disponível */
+.chart-container .dias-chart-container {
+    height: 100%;
+}
+
 /* Responsividade */
 @media (max-width: 768px) {
     .dias-chart-container {
@@ -194,13 +215,14 @@
         justify-content: center;
     }
     
-    .chart-wrapper {
-        min-height: 250px;
-    }
-    
     .btn-periodo {
         padding: 0.4rem 0.75rem;
         font-size: 0.8rem;
+    }
+    
+    /* Ajuste de altura em mobile */
+    .chart-container {
+        min-height: 350px;
     }
 }
 
@@ -209,8 +231,8 @@
         padding: 0.75rem;
     }
     
-    .chart-wrapper {
-        min-height: 200px;
+    .chart-container {
+        min-height: 300px;
     }
 }
 
@@ -228,10 +250,27 @@
     background: rgba(40, 40, 40, 0.95) !important;
     border-color: var(--primary, #1a73e8) !important;
 }
+
+/* Classes utilitárias para garantir o tamanho */
+.full-height {
+    height: 100%;
+}
+
+.full-width {
+    width: 100%;
+}
+
+.flex-grow {
+    flex-grow: 1;
+}
+
+.flex-shrink {
+    flex-shrink: 1;
+}
 </style>
 
 <script>
-// gráfico_diario.js - Versão simplificada sem exportação
+// gráfico_diario.js - Com ajustes de redimensionamento
 (function() {
     'use strict';
     
@@ -250,7 +289,8 @@
             chart: null,
             dados: null,
             periodo: 'week',
-            loading: false
+            loading: false,
+            resizeObserver: null
         },
         
         init: function() {
@@ -263,6 +303,9 @@
             this._setupChart();
             this._setupControls();
             this._setupEventListeners();
+            
+            // Iniciar observador de redimensionamento
+            this._setupResizeObserver();
             
             setTimeout(() => {
                 this.carregarDados(this.config.defaultPeriod);
@@ -287,7 +330,11 @@
         },
         
         _setupChart: function() {
-            const ctx = document.getElementById(this.config.chartId).getContext('2d');
+            const canvas = document.getElementById(this.config.chartId);
+            const ctx = canvas.getContext('2d');
+            
+            // Configurar tamanho inicial
+            this._updateCanvasSize(canvas);
             
             this.state.chart = new Chart(ctx, {
                 type: 'line',
@@ -317,7 +364,7 @@
         _getChartOptions: function() {
             return {
                 responsive: true,
-                maintainAspectRatio: false,
+                maintainAspectRatio: false, // IMPORTANTE: desativa proporção fixa
                 plugins: {
                     legend: {
                         display: true,
@@ -403,6 +450,15 @@
                     tension: {
                         duration: 1000,
                         easing: 'easeOutQuart'
+                    }
+                },
+                // Configuração para melhor redimensionamento
+                layout: {
+                    padding: {
+                        left: 10,
+                        right: 10,
+                        top: 10,
+                        bottom: 10
                     }
                 }
             };
@@ -521,12 +577,12 @@
         },
         
         _setupEventListeners: function() {
+            // Redimensionar janela
             window.addEventListener('resize', () => {
-                if (this.state.chart) {
-                    setTimeout(() => this.state.chart.resize(), 100);
-                }
+                this._handleResize();
             });
             
+            // Observar mudanças de tema
             const observer = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
                     if (mutation.attributeName === 'data-bs-theme' && this.state.chart) {
@@ -539,6 +595,52 @@
                 attributes: true,
                 attributeFilter: ['data-bs-theme']
             });
+        },
+        
+        _setupResizeObserver: function() {
+            // Observar mudanças no container pai
+            const container = document.querySelector('.chart-canvas-container');
+            if (!container || !window.ResizeObserver) return;
+            
+            this.state.resizeObserver = new ResizeObserver((entries) => {
+                for (let entry of entries) {
+                    this._handleResize();
+                }
+            });
+            
+            this.state.resizeObserver.observe(container);
+        },
+        
+        _handleResize: function() {
+            if (!this.state.chart) return;
+            
+            const canvas = document.getElementById(this.config.chartId);
+            if (!canvas) return;
+            
+            // Atualizar tamanho do canvas
+            this._updateCanvasSize(canvas);
+            
+            // Redesenhar gráfico
+            setTimeout(() => {
+                this.state.chart.resize();
+                this.state.chart.update();
+            }, 100);
+        },
+        
+        _updateCanvasSize: function(canvas) {
+            const container = canvas.closest('.chart-canvas-container');
+            if (!container) return;
+            
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            
+            // Atualizar atributos de tamanho
+            canvas.style.width = containerWidth + 'px';
+            canvas.style.height = containerHeight + 'px';
+            canvas.width = containerWidth;
+            canvas.height = containerHeight;
+            
+            console.log(`📏 Canvas atualizado: ${containerWidth}x${containerHeight}px`);
         },
         
         _onPeriodoClick: function(event) {
@@ -744,18 +846,14 @@
             this.carregarDados();
         },
         
-        getDados: function() {
-            return this.state.dados;
-        },
-        
-        getEstado: function() {
-            return this.state;
-        },
-        
         destroy: function() {
             if (this.state.chart) {
                 this.state.chart.destroy();
                 this.state.chart = null;
+            }
+            
+            if (this.state.resizeObserver) {
+                this.state.resizeObserver.disconnect();
             }
             
             const tooltipEl = document.getElementById('diasChart-tooltip');
@@ -765,16 +863,25 @@
         }
     };
     
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
+    // Inicializar quando o container estiver visível
+    const initChart = () => {
+        const container = document.querySelector('.chart-container');
+        if (container && container.offsetParent !== null) {
             setTimeout(() => GraficoDiario.init(), 100);
-        });
+        } else {
+            // Esperar um pouco e tentar novamente
+            setTimeout(initChart, 500);
+        }
+    };
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initChart);
     } else {
-        setTimeout(() => GraficoDiario.init(), 100);
+        initChart();
     }
     
     window.GraficoDiario = GraficoDiario;
     
-    console.log('📊 Gráfico diário carregado');
+    console.log('📊 Gráfico diário carregado (com ajuste de tamanho)');
 })();
 </script>
