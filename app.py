@@ -483,10 +483,10 @@ def api_pico_mensal():
 def api_grafico_diario():
     """
     Retorna dados históricos agrupados por DIA
-    Soma de potência, tensão média, corrente média, energia total
+    Versão corrigida para funcionar com sua estrutura de dados
     """
     try:
-        period = request.args.get("period", "month")
+        period = request.args.get("period", "week")  # Default para semana
         start_raw = request.args.get("start")
         end_raw = request.args.get("end")
 
@@ -508,7 +508,7 @@ def api_grafico_diario():
             dt_end = today
 
         elif period == "month":
-            dt_start = today - timedelta(days=30)  # Últimos 30 dias
+            dt_start = today - timedelta(days=29)  # Últimos 30 dias
             dt_end = today
 
         elif period == "custom" and start_raw and end_raw:
@@ -521,66 +521,190 @@ def api_grafico_diario():
         else:
             return jsonify({"success": False, "message": "Parâmetros inválidos"}), 400
 
+        print(f"📊 Buscando dados de {dt_start} a {dt_end}")
+
         # ============================
-        # 2) CONSULTA AGREGADA POR DIA
+        # 2) BUSCAR DADOS BRUTOS PRIMEIRO
         # ============================
-        from sqlalchemy import func, cast, Date
-        
-        dados_diarios = (
+        # Primeiro, pegar todos os registros do período
+        registros = (
             EnergyData.query
-            .with_entities(
-                func.date(EnergyData.timestamp).label('data_dia'),
-                func.sum(EnergyData.power).label('potencia_total'),
-                func.avg(EnergyData.voltage).label('tensao_media'),
-                func.sum(EnergyData.current).label('corrente_total'),
-                func.max(EnergyData.energy).label('energia_maxima'),  # Ou func.sum se for incremental
-                func.count(EnergyData.id).label('total_registros')
-            )
             .filter(
                 func.date(EnergyData.timestamp) >= dt_start,
                 func.date(EnergyData.timestamp) <= dt_end
             )
-            .group_by(func.date(EnergyData.timestamp))
-            .order_by('data_dia')
+            .order_by(EnergyData.timestamp.asc())
             .all()
         )
+        
+        print(f"✅ Encontrados {len(registros)} registros brutos")
+        
+        if not registros:
+            return jsonify({
+                "success": True,
+                "datas": [],
+                "potencia": [],
+                "tensao": [],
+                "corrente": [],
+                "energia": [],
+                "total_dias": 0,
+                "periodo_inicio": dt_start.strftime("%Y-%m-%d"),
+                "periodo_fim": dt_end.strftime("%Y-%m-%d"),
+                "message": "Nenhum dado encontrado no período"
+            })
 
         # ============================
-        # 3) PREPARAR JSON PARA O JS
+        # 3) AGRUPAR POR DIA MANUALMENTE
         # ============================
-        datas = []
-        potencia = []
-        tensao = []
-        corrente = []
-        energia = []
-
-        for d in dados_diarios:
-            # Formatar data como "2 Jan", "3 Jan", etc.
-            data_formatada = d.data_dia.strftime("%d %b")
+        dados_por_dia = {}
+        
+        for reg in registros:
+            data_dia = reg.timestamp.date()
+            data_str = data_dia.strftime("%Y-%m-%d")
             
-            datas.append(data_formatada)
-            potencia.append(float(d.potencia_total or 0))
-            tensao.append(float(d.tensao_media or 0))
-            corrente.append(float(d.corrente_total or 0))
-            energia.append(float(d.energia_maxima or 0))
+            if data_str not in dados_por_dia:
+                dados_por_dia[data_str] = {
+                    'data': data_dia,
+                    'timestamps': [],
+                    'voltage_values': [],
+                    'current_values': [],
+                    'power_values': [],
+                    'energy_values': [],
+                    'first_energy': None,
+                    'last_energy': None
+                }
+            
+            # Coletar valores (tratando possíveis valores None)
+            dados = dados_por_dia[data_str]
+            dados['timestamps'].append(reg.timestamp)
+            
+            # Converter para float, tratando None
+            voltage_val = float(reg.voltage) if reg.voltage is not None else None
+            current_val = float(reg.current) if reg.current is not None else None
+            power_val = float(reg.power) if reg.power is not None else None
+            energy_val = float(reg.energy) if reg.energy is not None else None
+            
+            if voltage_val is not None:
+                dados['voltage_values'].append(voltage_val)
+            if current_val is not None:
+                dados['current_values'].append(current_val)
+            if power_val is not None:
+                dados['power_values'].append(power_val)
+            if energy_val is not None:
+                dados['energy_values'].append(energy_val)
+                
+                # Para cálculo de energia diária (assumindo que é contador acumulativo)
+                if dados['first_energy'] is None:
+                    dados['first_energy'] = energy_val
+                dados['last_energy'] = energy_val
 
-        return jsonify({
+        # ============================
+        # 4) CALCULAR TOTAIS/MÉDIAS DIÁRIAS
+        # ============================
+        datas_formatadas = []
+        potencia_diaria = []
+        tensao_media = []
+        corrente_total = []
+        energia_diaria = []
+        
+        # Ordenar dias cronologicamente
+        for data_str in sorted(dados_por_dia.keys()):
+            dados = dados_por_dia[data_str]
+            
+            # Formatar data: "2 Jan"
+            data_formatada = dados['data'].strftime("%d %b")
+            datas_formatadas.append(data_formatada)
+            
+            # POTÊNCIA: Soma total do dia
+            if dados['power_values']:
+                # Soma de todas as medições de potência do dia
+                potencia_total = sum(dados['power_values'])
+                potencia_diaria.append(round(potencia_total, 2))
+            else:
+                potencia_diaria.append(0)
+            
+            # TENSÃO: Média do dia
+            if dados['voltage_values']:
+                tensao_media.append(round(sum(dados['voltage_values']) / len(dados['voltage_values']), 2))
+            else:
+                tensao_media.append(0)
+            
+            # CORRENTE: Soma total do dia
+            if dados['current_values']:
+                corrente_total.append(round(sum(dados['current_values']), 2))
+            else:
+                corrente_total.append(0)
+            
+            # ENERGIA: 
+            # Opção A: Se for contador acumulativo, calcular diferença
+            if dados['first_energy'] is not None and dados['last_energy'] is not None:
+                energia_delta = dados['last_energy'] - dados['first_energy']
+                # Se o contador foi resetado (valor negativo), usar último valor
+                if energia_delta < 0:
+                    energia_delta = dados['last_energy']
+                energia_diaria.append(round(energia_delta, 2))
+            # Opção B: Se não for contador, usar última medição do dia
+            elif dados['energy_values']:
+                energia_diaria.append(round(dados['energy_values'][-1], 2))
+            else:
+                energia_diaria.append(0)
+        
+        print(f"📈 Processados {len(datas_formatadas)} dias")
+        
+        # Se não houver dados suficientes, completar com zeros
+        if len(datas_formatadas) == 0:
+            # Criar array de datas do período
+            from datetime import timedelta
+            current_date = dt_start
+            while current_date <= dt_end:
+                datas_formatadas.append(current_date.strftime("%d %b"))
+                potencia_diaria.append(0)
+                tensao_media.append(0)
+                corrente_total.append(0)
+                energia_diaria.append(0)
+                current_date += timedelta(days=1)
+
+        # ============================
+        # 5) PREPARAR RESPOSTA JSON
+        # ============================
+        response_data = {
             "success": True,
-            "datas": datas,
-            "potencia": potencia,
-            "tensao": tensao,
-            "corrente": corrente,
-            "energia": energia,
-            "total_dias": len(datas),
+            "datas": datas_formatadas,
+            "potencia": potencia_diaria,
+            "tensao": tensao_media,
+            "corrente": corrente_total,
+            "energia": energia_diaria,
+            "total_dias": len(datas_formatadas),
             "periodo_inicio": dt_start.strftime("%Y-%m-%d"),
-            "periodo_fim": dt_end.strftime("%Y-%m-%d")
-        })
+            "periodo_fim": dt_end.strftime("%Y-%m-%d"),
+            "detalhes": {
+                "potencia_tipo": "soma_diaria",
+                "tensao_tipo": "media_diaria",
+                "corrente_tipo": "soma_diaria",
+                "energia_tipo": "diferenca_contador" if any(dados_por_dia[key].get('first_energy') for key in dados_por_dia) else "ultimo_valor"
+            }
+        }
+        
+        # Log para debug
+        print(f"📊 Retornando {len(datas_formatadas)} dias de dados")
+        if len(datas_formatadas) > 0:
+            print(f"📊 Exemplo primeiro dia: {datas_formatadas[0]}")
+            print(f"📊 Potência: {potencia_diaria[:3]}...")
+            print(f"📊 Tensão: {tensao_media[:3]}...")
+            print(f"📊 Corrente: {corrente_total[:3]}...")
+            print(f"📊 Energia: {energia_diaria[:3]}...")
+        
+        return jsonify(response_data)
 
     except Exception as e:
-        print("❌ ERRO /api/grafico-diario:", e)
+        print(f"❌ ERRO em /api/grafico-diario: {str(e)}")
         import traceback
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({
+            "success": False, 
+            "error": str(e),
+            "message": "Erro interno ao processar dados"
+        }), 500
 
 @app.route("/api/grafico", methods=["GET"])
 @login_required
@@ -629,16 +753,22 @@ def api_grafico():
         else:
             return jsonify({"success": False, "message": "Parâmetros inválidos"}), 400
 
+        print(f"📊 Buscando dados de gráfico de {dt_start} a {dt_end}")
+
         # ============================
         # 2) CONSULTA REAL AO BANCO
         # ============================
         dados = (
             EnergyData.query
-            .filter(func.date(EnergyData.timestamp) >= dt_start,
-                    func.date(EnergyData.timestamp) <= dt_end)
+            .filter(
+                func.date(EnergyData.timestamp) >= dt_start,
+                func.date(EnergyData.timestamp) <= dt_end
+            )
             .order_by(EnergyData.timestamp.asc())
             .all()
         )
+
+        print(f"✅ Encontrados {len(dados)} registros")
 
         # ============================
         # 3) PREPARAR JSON PARA O JS
@@ -650,13 +780,16 @@ def api_grafico():
         energia = []
 
         for d in dados:
+            # Formatar timestamp
             timestamps.append(d.timestamp.strftime("%Y-%m-%d %H:%M:%S"))
-            tensao.append(d.voltage)
-            corrente.append(d.current)
-            potencia.append(d.power)
-            energia.append(d.energy)
+            
+            # Converter valores, tratando None
+            tensao.append(float(d.voltage) if d.voltage is not None else 0)
+            corrente.append(float(d.current) if d.current is not None else 0)
+            potencia.append(float(d.power) if d.power is not None else 0)
+            energia.append(float(d.energy) if d.energy is not None else 0)
 
-        return jsonify({
+        response_data = {
             "success": True,
             "timestamps": timestamps,
             "tensao": tensao,
@@ -664,12 +797,21 @@ def api_grafico():
             "potencia": potencia,
             "energia": energia,
             "total_registros": len(potencia)
-        })
+        }
+
+        print(f"📈 Retornando {len(timestamps)} pontos de dados")
+
+        return jsonify(response_data)
 
     except Exception as e:
-        print("❌ ERRO /api/grafico:", e)
+        print(f"❌ ERRO em /api/grafico: {str(e)}")
+        import traceback
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": "Erro interno ao buscar dados"
+        }), 500
 
 @app.route('/api/historico-consumo-mensal')
 @login_required

@@ -1,0 +1,180 @@
+<!-- gráfico_diario.html -->
+<style>
+/* ===== CONTROLES DE PERÍODO DO GRÁFICO ===== */
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.period-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.period-controls .btn-periodo {
+    padding: 6px 12px;
+    border: 2px solid var(--primary, #1a73e8);
+    background: transparent;
+    color: var(--primary, #1a73e8);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.period-controls .btn-periodo:hover {
+    background: var(--primary, #1a73e8);
+    color: white;
+}
+
+.period-controls .btn-periodo.active {
+    background: var(--primary, #1a73e8);
+    color: white;
+}
+
+/* Container do gráfico */
+.chart-container {
+    background: var(--bg-secondary, #f8f9fa);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border-color, #dee2e6);
+    position: relative;
+    overflow: hidden;
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+}
+
+.chart-container:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* Estatísticas abaixo do gráfico */
+#info-grafico .card {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-radius: 12px;
+}
+
+#info-grafico .card-title {
+    color: var(--text-primary, #212529);
+    font-weight: 600;
+    border-bottom: 2px solid var(--primary, #1a73e8);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+#info-grafico .text-primary { color: var(--primary, #1a73e8) !important; }
+#info-grafico .text-success { color: #28a745 !important; }
+#info-grafico .text-danger { color: #dc3545 !important; }
+#info-grafico .text-warning { color: #ffc107 !important; }
+
+/* Tooltip personalizado */
+.chartjs-tooltip {
+    background: rgba(0, 0, 0, 0.85) !important;
+    border-radius: 8px !important;
+    border: 2px solid var(--primary, #1a73e8) !important;
+    padding: 12px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+.chartjs-tooltip-header {
+    color: #fff !important;
+    font-weight: 600 !important;
+    margin-bottom: 8px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+    padding-bottom: 4px !important;
+}
+
+.chartjs-tooltip-body {
+    color: #fff !important;
+}
+
+/* Loading overlay */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    border-radius: 16px;
+    display: none;
+}
+
+.loading-overlay.active {
+    display: flex;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary, #1a73e8);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .chart-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 15px;
+    }
+    
+    .period-controls {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .chart-container {
+        min-height: 350px;
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .chart-container {
+        min-height: 300px;
+    }
+    
+    .period-controls .btn-periodo {
+        padding: 5px 10px;
+        font-size: 0.8rem;
+    }
+}
+</style>
+
+<div class="chart-container">
+    <div class="chart-header">
+        <h5>Consumo Diário de Potência</h5>
+        <div class="period-controls">
+            <button class="btn-periodo btn-sm btn-outline-primary active" data-period="week">Semana</button>
+            <button class="btn-periodo btn-sm btn-outline-primary" data-period="month">Mês</button>
+            <button class="btn-periodo btn-sm btn-outline-primary" data-period="custom">Personalizado</button>
+        </div>
+    </div>
+    <canvas id="energyChart" height="250"></canvas>
+    <div id="info-grafico" class="mt-3"></div>
+</div>
