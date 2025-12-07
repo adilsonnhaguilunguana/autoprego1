@@ -43,6 +43,7 @@ const GraficoDias = {
             return false;
         }
         
+         this._setupTooltipCleanup(); 
         // Inicializar gráfico
         this._inicializarChart();
         
@@ -95,117 +96,175 @@ const GraficoDias = {
     /**
      * Retorna as opções de configuração do gráfico
      */
-    _getChartOptions: function() {
-        return {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        font: {
-                            size: 14,
-                            weight: '600'
-                        },
-                        color: '#2c3e50',
-                        padding: 20
-                    }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-                    titleColor: '#fff',
-                    bodyColor: '#fff',
-                    borderColor: this.config.chartColors.primary,
-                    borderWidth: 1,
-                    padding: 12,
-                    cornerRadius: 6,
-                    displayColors: false,
-                    callbacks: {
-                        title: (tooltipItems) => `📅 ${tooltipItems[0].label}`,
-                        label: (context) => this._getTooltipContent(context)
-                    }
+_getChartOptions: function() {
+    return {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: true,
+                position: 'top',
+                labels: {
+                    font: {
+                        size: 14,
+                        weight: '600'
+                    },
+                    color: '#2c3e50',
+                    padding: 20
                 }
             },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Potência (W)',
-                        font: {
-                            size: 14,
-                            weight: '600'
-                        },
-                        color: '#2c3e50'
-                    },
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.1)',
-                        drawBorder: false
-                    },
-                    ticks: {
-                        font: {
-                            size: 12
-                        },
-                        color: '#666',
-                        padding: 10,
-                        callback: (value) => `${value} W`
-                    }
-                },
-                x: {
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.1)',
-                        drawBorder: false
-                    },
-                    ticks: {
-                        font: {
-                            size: 12
-                        },
-                        color: '#666',
-                        maxRotation: 45
-                    },
-                    title: {
-                        display: true,
-                        text: 'Data',
-                        font: {
-                            size: 14,
-                            weight: '600'
-                        },
-                        color: '#2c3e50'
-                    }
-                }
-            },
-            interaction: {
+            tooltip: {
+                enabled: true,
+                mode: 'index',
                 intersect: false,
-                mode: 'nearest'
-            },
-            animation: {
-                duration: 1000,
-                easing: 'easeOutQuart'
+                backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                titleColor: '#fff',
+                bodyColor: '#fff',
+                borderColor: this.config.chartColors.primary,
+                borderWidth: 2,
+                padding: 12,
+                cornerRadius: 8,
+                displayColors: false,
+                // CONFIGURAÇÕES CRÍTICAS PARA DESAPARECIMENTO:
+                animation: {
+                    duration: 150  // Animação mais rápida
+                },
+                // Configurar transições suaves
+                transition: {
+                    duration: 150
+                },
+                // REMOVER O EXTERNAL - ele interfere no comportamento padrão
+                // external: (context) => {
+                //     if (context.tooltip.opacity === 0) {
+                //         const tooltipEl = document.getElementById('chartjs-tooltip');
+                //         if (tooltipEl) {
+                //             tooltipEl.style.opacity = 0;
+                //         }
+                //     }
+                // },
+                callbacks: {
+                    title: (tooltipItems) => `📅 ${tooltipItems[0].label}`,
+                    label: (context) => this._getTooltipContent(context),
+                    // Adicionar callback para após o tooltip ser escondido
+                    afterBody: () => {
+                        // Esta função é chamada após o tooltip ser renderizado
+                        // Não faz nada, apenas garante que o callback existe
+                    }
+                }
             }
-        };
-    },
-    
-    /**
-     * Retorna o conteúdo do tooltip
-     */
-    _getTooltipContent: function(context) {
-        if (!this.state.dadosCompletos) {
-            return [`Potência: ${context.parsed.y} W`];
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Potência (W)',
+                    font: {
+                        size: 14,
+                        weight: '600'
+                    },
+                    color: '#2c3e50'
+                },
+                grid: {
+                    color: 'rgba(0, 0, 0, 0.1)',
+                    drawBorder: false
+                },
+                ticks: {
+                    font: {
+                        size: 12
+                    },
+                    color: '#666',
+                    padding: 10,
+                    callback: (value) => `${value} W`
+                }
+            },
+            x: {
+                grid: {
+                    color: 'rgba(0, 0, 0, 0.1)',
+                    drawBorder: false
+                },
+                ticks: {
+                    font: {
+                        size: 12
+                    },
+                    color: '#666',
+                    maxRotation: 45
+                },
+                title: {
+                    display: true,
+                    text: 'Data',
+                    font: {
+                        size: 14,
+                        weight: '600'
+                    },
+                    color: '#2c3e50'
+                }
+            }
+        },
+        interaction: {
+            intersect: false,
+            mode: 'nearest',
+            // CONFIGURAÇÃO IMPORTANTE:
+            axis: 'x'  // Só interage no eixo X
+        },
+        // Configurações de hover
+        hover: {
+            mode: 'index',
+            intersect: false,
+            animationDuration: 0  // Sem animação no hover
+        },
+        animation: {
+            duration: 1000,
+            easing: 'easeOutQuart'
         }
-        
-        const index = context.dataIndex;
-        const dados = this.state.dadosCompletos;
-        
-        return [
-            `⚡ Potência: ${dados.potencia[index]?.toFixed(2) || 0} W`,
-            `🔌 Tensão: ${dados.tensao[index]?.toFixed(2) || 0} V`,
-            `🔋 Corrente: ${dados.corrente[index]?.toFixed(2) || 0} A`,
-            `💡 Energia: ${dados.energia[index]?.toFixed(2) || 0} kWh`
-        ];
-    },
+    };
+},
+
+_getTooltipContent: function(context) {
+    if (!this.state.dadosCompletos) {
+        return [`Potência: ${context.parsed.y.toFixed(2)} W`];
+    }
+    
+    const index = context.dataIndex;
+    const dados = this.state.dadosCompletos;
+    
+    // IMPORTANTE: Sempre retornar array mesmo com um item
+    return [
+        `⚡ Potência: ${dados.potencia[index]?.toFixed(2) || 0} W`,
+        `🔌 Tensão: ${dados.tensao[index]?.toFixed(2) || 0} V`,
+        `🔋 Corrente: ${dados.corrente[index]?.toFixed(2) || 0} A`,
+        `💡 Energia: ${dados.energia[index]?.toFixed(2) || 0} kWh`
+    ];
+},
+// Adicione esta função ao seu objeto GraficoDiario
+_cleanupTooltips: function() {
+    // Esta função força a limpeza de todos os tooltips
+    const tooltips = document.querySelectorAll('.chartjs-tooltip');
+    tooltips.forEach(tooltip => {
+        tooltip.style.opacity = '0';
+        tooltip.style.visibility = 'hidden';
+        tooltip.style.pointerEvents = 'none';
+    });
+},
+
+// E chame esta função quando o mouse sair do gráfico
+_setupTooltipCleanup: function() {
+    const canvas = document.getElementById(this.config.chartId);
+    if (!canvas) return;
+    
+    // Quando o mouse sair do canvas, limpe os tooltips
+    canvas.addEventListener('mouseleave', () => {
+        this._cleanupTooltips();
+    });
+    
+    // Quando o mouse sair do container do gráfico
+    const container = canvas.closest('.dias-chart-container');
+    if (container) {
+        container.addEventListener('mouseleave', () => {
+            this._cleanupTooltips();
+        });
+    }
+},
     
     // ============================================
     // CONTROLES E EVENTOS
