@@ -478,6 +478,110 @@ def api_pico_mensal():
 #==========================================================
                         #Grafico
 #==========================================================
+@app.route("/api/grafico-diario", methods=["GET"])
+@login_required
+def api_grafico_diario():
+    """
+    Retorna dados históricos agrupados por DIA
+    Soma de potência, tensão média, corrente média, energia total
+    """
+    try:
+        period = request.args.get("period", "month")
+        start_raw = request.args.get("start")
+        end_raw = request.args.get("end")
+
+        today = datetime.utcnow().date()
+
+        # ============================
+        # 1) DEFINIR INTERVALO
+        # ============================
+        if period == "day":
+            dt_start = today
+            dt_end = today
+
+        elif period == "yesterday":
+            dt_start = today - timedelta(days=1)
+            dt_end = dt_start
+
+        elif period == "week":
+            dt_start = today - timedelta(days=6)  # Últimos 7 dias
+            dt_end = today
+
+        elif period == "month":
+            dt_start = today - timedelta(days=30)  # Últimos 30 dias
+            dt_end = today
+
+        elif period == "custom" and start_raw and end_raw:
+            dt_start = datetime.strptime(start_raw, "%Y-%m-%d").date()
+            dt_end = datetime.strptime(end_raw, "%Y-%m-%d").date()
+
+            # Limite de segurança
+            if (dt_end - dt_start).days > 365:
+                return jsonify({"success": False, "message": "Intervalo máximo: 1 ano"}), 400
+        else:
+            return jsonify({"success": False, "message": "Parâmetros inválidos"}), 400
+
+        # ============================
+        # 2) CONSULTA AGREGADA POR DIA
+        # ============================
+        from sqlalchemy import func, cast, Date
+        
+        dados_diarios = (
+            EnergyData.query
+            .with_entities(
+                func.date(EnergyData.timestamp).label('data_dia'),
+                func.sum(EnergyData.power).label('potencia_total'),
+                func.avg(EnergyData.voltage).label('tensao_media'),
+                func.sum(EnergyData.current).label('corrente_total'),
+                func.max(EnergyData.energy).label('energia_maxima'),  # Ou func.sum se for incremental
+                func.count(EnergyData.id).label('total_registros')
+            )
+            .filter(
+                func.date(EnergyData.timestamp) >= dt_start,
+                func.date(EnergyData.timestamp) <= dt_end
+            )
+            .group_by(func.date(EnergyData.timestamp))
+            .order_by('data_dia')
+            .all()
+        )
+
+        # ============================
+        # 3) PREPARAR JSON PARA O JS
+        # ============================
+        datas = []
+        potencia = []
+        tensao = []
+        corrente = []
+        energia = []
+
+        for d in dados_diarios:
+            # Formatar data como "2 Jan", "3 Jan", etc.
+            data_formatada = d.data_dia.strftime("%d %b")
+            
+            datas.append(data_formatada)
+            potencia.append(float(d.potencia_total or 0))
+            tensao.append(float(d.tensao_media or 0))
+            corrente.append(float(d.corrente_total or 0))
+            energia.append(float(d.energia_maxima or 0))
+
+        return jsonify({
+            "success": True,
+            "datas": datas,
+            "potencia": potencia,
+            "tensao": tensao,
+            "corrente": corrente,
+            "energia": energia,
+            "total_dias": len(datas),
+            "periodo_inicio": dt_start.strftime("%Y-%m-%d"),
+            "periodo_fim": dt_end.strftime("%Y-%m-%d")
+        })
+
+    except Exception as e:
+        print("❌ ERRO /api/grafico-diario:", e)
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route("/api/grafico", methods=["GET"])
 @login_required
 def api_grafico():
