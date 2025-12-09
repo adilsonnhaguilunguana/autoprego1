@@ -2,7 +2,7 @@
 // Estado global da aplicação
 const state = {
     charts: {
-        energyChart: null,
+        
         peakChart: null,
         relesChart: null,
         gaugeChart: null
@@ -64,163 +64,6 @@ function debounce(func, wait) {
 
 // Inicializar gráficos
 function inicializarGraficos() {
-const energyCtx = getElement('energyChart')?.getContext('2d');
-if (energyCtx) {
-    state.charts.energyChart = new Chart(energyCtx, {
-        type: 'line',
-        data: {
-            labels: [], // Aqui serão as datas: "2 Jan", "3 Jan", etc.
-            datasets: [{
-                label: 'Potência (W)',
-                data: [], // Valores de potência
-                borderColor: 'rgb(54, 162, 235)',
-                backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                fill: true,
-                tension: 0.4,
-                borderWidth: 3,
-                pointRadius: 4,
-                pointHoverRadius: 7,
-                pointBackgroundColor: 'rgb(54, 162, 235)',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { 
-                    position: 'top', 
-                    labels: { 
-                        font: { 
-                            size: 14, 
-                            weight: '600' 
-                        },
-                        color: '#333'
-                    } 
-                },
-                title: { 
-                    display: true, 
-                    text: 'Consumo Diário de Potência', 
-                    font: { 
-                        size: 16, 
-                        weight: '700' 
-                    },
-                    padding: { bottom: 20 }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    titleColor: '#fff',
-                    bodyColor: '#fff',
-                    borderColor: 'rgba(54, 162, 235, 0.8)',
-                    borderWidth: 1,
-                    padding: 12,
-                    cornerRadius: 6,
-                    // Custom tooltip para mostrar todas as informações
-                    callbacks: {
-                        title: function(tooltipItems) {
-                            // Título mostra a data
-                            return `📅 ${tooltipItems[0].label}`;
-                        },
-                        label: function(context) {
-                            // Este gráfico só tem dataset de potência, mas vamos
-                            // buscar os outros dados do estado global
-                            const index = context.dataIndex;
-                            const labels = context.chart.data.labels;
-                            const date = labels[index];
-                            
-                            // Se tivermos dados completos no estado, usamos
-                            if (state.dadosCompletos && state.dadosCompletos.datas) {
-                                const diaIndex = state.dadosCompletos.datas.findIndex(d => d === date);
-                                if (diaIndex !== -1) {
-                                    return [
-                                        `⚡ Potência: ${state.dadosCompletos.potencia[diaIndex].toFixed(2)} W`,
-                                        `🔌 Tensão: ${state.dadosCompletos.tensao[diaIndex].toFixed(2)} V`,
-                                        `🔋 Corrente: ${state.dadosCompletos.corrente[diaIndex].toFixed(2)} A`,
-                                        `💡 Energia: ${state.dadosCompletos.energia[diaIndex].toFixed(2)} kWh`
-                                    ];
-                                }
-                            }
-                            
-                            // Fallback se não tiver dados completos
-                            return `Potência: ${context.parsed.y.toFixed(2)} W`;
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: { 
-                    beginAtZero: true, 
-                    title: { 
-                        display: true, 
-                        text: 'Potência (W)', 
-                        font: { 
-                            size: 14, 
-                            weight: '600' 
-                        },
-                        color: '#666'
-                    }, 
-                    grid: { 
-                        color: 'rgba(0, 0, 0, 0.1)',
-                        drawBorder: false
-                    },
-                    ticks: {
-                        font: {
-                            size: 12
-                        },
-                        color: '#666',
-                        padding: 10,
-                        callback: function(value) {
-                            return value + ' W';
-                        }
-                    }
-                },
-                x: { 
-                    grid: { 
-                        color: 'rgba(0, 0, 0, 0.1)',
-                        drawBorder: false
-                    },
-                    ticks: {
-                        font: {
-                            size: 12
-                        },
-                        color: '#666',
-                        maxRotation: 45
-                    },
-                    title: {
-                        display: true,
-                        text: 'Data',
-                        font: { 
-                            size: 14, 
-                            weight: '600' 
-                        },
-                        color: '#666'
-                    }
-                }
-            },
-            interaction: {
-                intersect: false,
-                mode: 'nearest'
-            },
-            elements: {
-                line: {
-                    tension: 0.4
-                },
-                point: {
-                    hoverBackgroundColor: '#fff',
-                    hoverBorderColor: 'rgb(54, 162, 235)',
-                    hoverBorderWidth: 3
-                }
-            },
-            animation: { 
-                duration: 1000, 
-                easing: 'easeOutQuart' 
-            }
-        }
-    });
-}
     const peakCtx = getElement('peakChart')?.getContext('2d');
     if (peakCtx) {
         state.charts.peakChart = new Chart(peakCtx, {
@@ -252,99 +95,6 @@ if (energyCtx) {
 
 
 }
-async function carregarDadosDiarios(periodo = 'month') {
-    try {
-        showLoading(true);
-        
-        const response = await fetch(`/api/grafico-diario?period=${periodo}`);
-        const data = await response.json();
-        
-        if (data.success && state.charts.energyChart) {
-            // Salvar dados completos no estado para usar no tooltip
-            state.dadosCompletos = {
-                datas: data.datas,
-                potencia: data.potencia,
-                tensao: data.tensao,
-                corrente: data.corrente,
-                energia: data.energia
-            };
-            
-            // Atualizar gráfico com dados de potência
-            state.charts.energyChart.data.labels = data.datas;
-            state.charts.energyChart.data.datasets[0].data = data.potencia;
-            
-            // Atualizar título com informações resumidas
-            const totalPotencia = data.potencia.reduce((a, b) => a + b, 0);
-            const mediaPotencia = totalPotencia / data.potencia.length;
-            const maxPotencia = Math.max(...data.potencia);
-            
-            state.charts.energyChart.options.plugins.title.text = 
-                `Consumo Diário de Potência (${data.periodo_inicio} a ${data.periodo_fim})`;
-            
-            // Atualizar legenda com informações
-            state.charts.energyChart.data.datasets[0].label = 
-                `Potência (Média: ${mediaPotencia.toFixed(1)} W)`;
-            
-            state.charts.energyChart.update();
-            
-            // Adicionar informações extras em algum elemento da página
-            const infoElement = document.getElementById('info-grafico');
-            if (infoElement) {
-                infoElement.innerHTML = `
-                    <div class="stats-card">
-                        <h6>📊 Estatísticas do Período</h6>
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <span class="stat-label">Dias analisados:</span>
-                                <span class="stat-value">${data.total_dias}</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">Potência total:</span>
-                                <span class="stat-value">${totalPotencia.toFixed(1)} W</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">Potência máxima:</span>
-                                <span class="stat-value">${maxPotencia.toFixed(1)} W</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">Energia total:</span>
-                                <span class="stat-value">${data.energia[data.energia.length - 1]?.toFixed(1) || 0} kWh</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-        } else {
-            showToast('Erro ao carregar dados do gráfico', 'danger');
-        }
-    } catch (error) {
-        console.error('Erro ao carregar dados diários:', error);
-        showToast('Erro de conexão com o servidor', 'danger');
-    } finally {
-        showLoading(false);
-    }
-}
-
-// Adicione controles para período
-function inicializarControlesPeriodo() {
-    const botoesPeriodo = document.querySelectorAll('.btn-periodo');
-    
-    botoesPeriodo.forEach(botao => {
-        botao.addEventListener('click', function() {
-            const periodo = this.dataset.period;
-            carregarDadosDiarios(periodo);
-            
-            // Atualizar estado ativo
-            botoesPeriodo.forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-        });
-    });
-    
-    // Carregar dados iniciais
-    carregarDadosDiarios('month');
-}
-
 
 // Atualizar dados do dashboard
 async function atualizarDashboard() {
@@ -480,11 +230,7 @@ function atualizarGraficos(data) {
         return;
     }
 
-    if (state.charts.energyChart) {
-        state.charts.energyChart.data.labels = data.historical.labels;
-        state.charts.energyChart.data.datasets[0].data = data.historical.values;
-        state.charts.energyChart.update();
-    }
+
 
     if (state.charts.peakChart) {
         // ✅ AGORA: Gráfico mostra picos de cada dia da semana atual
@@ -711,12 +457,6 @@ function atualizarGraficos(data) {
         console.error('Dados dos gráficos incompletos');
         showToast('Erro ao atualizar gráficos: dados incompletos', 'danger');
         return;
-    }
-
-    if (state.charts.energyChart) {
-        state.charts.energyChart.data.labels = data.historical.labels;
-        state.charts.energyChart.data.datasets[0].data = data.historical.values;
-        state.charts.energyChart.update();
     }
 
     if (state.charts.peakChart) {
@@ -2316,7 +2056,6 @@ function debugDadosRelatorio() {
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
     inicializarGraficos();
-    inicializarControlesPeriodo();
     atualizarDashboard();
     carregarReles();
     carregarModosReles();
